@@ -36,7 +36,7 @@ roe_data = pd.DataFrame({
 app = dash.Dash(__name__, 
                 meta_tags=[{'name': 'viewport', 'content': 'width=device-width, initial-scale=1.0'}])
 
-# App layout with improved UI
+# App layout with improved UI and tables stacked vertically
 app.layout = html.Div([
     html.Div([
         html.H1("Roe Allocation Dashboard", className="app-header"),
@@ -44,68 +44,66 @@ app.layout = html.Div([
     ], className="header"),
     
     html.Div([
-        html.Div([
-            html.H3("Customer Orders"),
-            dash_table.DataTable(
-                id="orders-table",
-                columns=[
-                    {"name": "Order ID", "id": "OrderID"},
-                    {"name": "Customer", "id": "CustomerID"},
-                    {"name": "Eggs Ordered", "id": "OrderedEggs", "type": "numeric", "format": {"specifier": ","}},
-                    {"name": "Product Type", "id": "Product"},
-                    {"name": "Delivery Date", "id": "DeliveryDate"},
-                    {"name": "Geographic Preference", "id": "GeographicPreference"},
-                    {"name": "Cooling Preference", "id": "CoolingPreference", "type": "boolean"}
-                ],
-                data=orders_data.to_dict("records"),
-                editable=True,
-                row_deletable=True,
-                style_table={"overflowX": "auto"},
-                style_cell={'textAlign': 'left', 'padding': '8px'},
-                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
-                style_data_conditional=[
-                    {
-                        'if': {'row_index': 'odd'},
-                        'backgroundColor': '#f5f5f5'
-                    }
-                ]
-            ),
-            html.Button("Add Order Row", id="add-order-row", n_clicks=0, className="btn"),
-        ], className="table-container"),
-        
-        html.Div([
-            html.H3("Available Roe by Broodstock Group"),
-            dash_table.DataTable(
-                id="roe-table",
-                columns=[
-                    {"name": "Broodstock Group", "id": "BroodstockGroup"},
-                    {"name": "Available Eggs", "id": "ProducedEggs", "type": "numeric", "format": {"specifier": ","}},
-                    {"name": "Location", "id": "Location"},
-                    {"name": "Product Type", "id": "Product"},
-                    {"name": "Sale Start", "id": "StartSaleDate"},
-                    {"name": "Expiry Date", "id": "ExpireDate"},
-                    {"name": "Broadfish Cycle", "id": "BroadfishCycle"},
-                    {"name": "Gain %", "id": "GainPercentage", "type": "numeric", "format": {"specifier": ".0f"}},
-                    {"name": "Quality Score", "id": "QualityScore", "type": "numeric", "format": {"specifier": ".0f"}},
-                    {"name": "PD Status", "id": "PDStatus"},
-                    {"name": "Cooling Capacity", "id": "CoolingCapacity", "type": "boolean"}
-                ],
-                data=roe_data.to_dict("records"),
-                editable=True,
-                row_deletable=True,
-                style_table={"overflowX": "auto"},
-                style_cell={'textAlign': 'left', 'padding': '8px'},
-                style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
-                style_data_conditional=[
-                    {
-                        'if': {'row_index': 'odd'},
-                        'backgroundColor': '#f5f5f5'
-                    }
-                ]
-            ),
-            html.Button("Add Roe Row", id="add-roe-row", n_clicks=0, className="btn"),
-        ], className="table-container"),
-    ], className="data-tables"),
+        html.H3("Customer Orders"),
+        dash_table.DataTable(
+            id="orders-table",
+            columns=[
+                {"name": "Order ID", "id": "OrderID"},
+                {"name": "Customer", "id": "CustomerID"},
+                {"name": "Eggs Ordered", "id": "OrderedEggs", "type": "numeric", "format": {"specifier": ","}},
+                {"name": "Product Type", "id": "Product"},
+                {"name": "Delivery Date", "id": "DeliveryDate"},
+                {"name": "Geographic Preference", "id": "GeographicPreference"},
+                {"name": "Cooling Preference", "id": "CoolingPreference", "type": "boolean"}
+            ],
+            data=orders_data.to_dict("records"),
+            editable=True,
+            row_deletable=True,
+            style_table={"overflowX": "auto"},
+            style_cell={'textAlign': 'left', 'padding': '8px'},
+            style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': '#f5f5f5'
+                }
+            ]
+        ),
+        html.Button("Add Order Row", id="add-order-row", n_clicks=0, className="btn"),
+    ], className="table-section"),
+    
+    html.Div([
+        html.H3("Available Roe by Broodstock Group"),
+        dash_table.DataTable(
+            id="roe-table",
+            columns=[
+                {"name": "Broodstock Group", "id": "BroodstockGroup"},
+                {"name": "Available Eggs", "id": "ProducedEggs", "type": "numeric", "format": {"specifier": ","}},
+                {"name": "Location", "id": "Location"},
+                {"name": "Product Type", "id": "Product"},
+                {"name": "Sale Start", "id": "StartSaleDate"},
+                {"name": "Expiry Date", "id": "ExpireDate"},
+                {"name": "Broadfish Cycle", "id": "BroadfishCycle"},
+                {"name": "Gain %", "id": "GainPercentage", "type": "numeric", "format": {"specifier": ".0f"}},
+                {"name": "Quality Score", "id": "QualityScore", "type": "numeric", "format": {"specifier": ".0f"}},
+                {"name": "PD Status", "id": "PDStatus"},
+                {"name": "Cooling Capacity", "id": "CoolingCapacity", "type": "boolean"}
+            ],
+            data=roe_data.to_dict("records"),
+            editable=True,
+            row_deletable=True,
+            style_table={"overflowX": "auto"},
+            style_cell={'textAlign': 'left', 'padding': '8px'},
+            style_header={'backgroundColor': '#f8f9fa', 'fontWeight': 'bold'},
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': '#f5f5f5'
+                }
+            ]
+        ),
+        html.Button("Add Roe Row", id="add-roe-row", n_clicks=0, className="btn"),
+    ], className="table-section"),
     
     html.Div([
         html.H3("Optimization Settings"),
@@ -437,7 +435,7 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
             )
         )
         
-        # Create improved timeline visualization
+        # Create improved timeline visualization with customer color coding
         fig2 = go.Figure()
 
         # Convert dates to datetime for plotting
@@ -445,53 +443,56 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
         roe_df['ExpireDate'] = pd.to_datetime(roe_df['ExpireDate'])
         orders_df['DeliveryDate'] = pd.to_datetime(orders_df['DeliveryDate'])
 
-        # Define color mapping for broodstock groups
-        color_map = {
-            'A': 'rgba(100, 149, 237, 0.6)',  # Cornflower blue
-            'B': 'rgba(144, 238, 144, 0.6)',  # Light green
-            'C': 'rgba(255, 182, 193, 0.6)',  # Light pink
-            'D': 'rgba(255, 218, 185, 0.6)'   # Peach
+        # Define color mapping for customers
+        customer_color_map = {
+            'C1': '#1f77b4',      # Blue
+            'C2': '#ff7f0e',      # Orange
+            'C3': '#2ca02c',      # Green
+            'mowi': '#d62728',    # Red
+            'NST': '#9467bd'      # Purple
         }
 
-        # Add roe availability periods with better colors
+        # Add roe availability periods (horizontal bars for each BroodstockGroup)
         for _, row in roe_df.iterrows():
-            group = row['BroodstockGroup']
-            color = color_map.get(group, 'rgba(55, 128, 191, 0.6)')
-            
             fig2.add_trace(go.Bar(
                 x=[row['ExpireDate'] - row['StartSaleDate']],  # Duration
-                y=[group],
+                y=[row['BroodstockGroup']],
                 orientation='h',
                 base=[row['StartSaleDate']],  # Start date
                 marker=dict(
-                    color=color,
-                    line=dict(color='rgba(50, 50, 50, 0.8)', width=1)
+                    color='rgba(200, 200, 200, 0.3)',  # Light gray for availability periods
+                    line=dict(color='rgba(150, 150, 150, 0.8)', width=1)
                 ),
-                name=f"{group} Available",
-                text=f"{group}: {row['AdjustedProducedEggs']:,} eggs<br>{row['Product']}<br>Quality: {row['QualityScore']}",
+                name=f"{row['BroodstockGroup']} Available",
+                text=f"{row['BroodstockGroup']}: {row['AdjustedProducedEggs']:,} eggs<br>{row['Product']}<br>Quality: {row['QualityScore']}",
                 hoverinfo="text",
-                showlegend=True
+                showlegend=False
             ))
 
-        # Add order delivery points with better visibility
+        # Add order delivery points with customer color coding
         if not allocation_df.empty:
-            for _, row in allocation_df.iterrows():
-                delivery_date = pd.to_datetime(row['DeliveryDate'])
-                fig2.add_trace(go.Scatter(
-                    x=[delivery_date],
-                    y=[row['BroodstockGroup']],
-                    mode="markers",
-                    marker=dict(
-                        symbol="circle",
-                        size=12,
-                        color="red",
-                        line=dict(color='black', width=1)
-                    ),
-                    name=f"Order {row['OrderID']}",
-                    text=f"Order {row['OrderID']}: {row['OrderedEggs']:,} eggs<br>Customer: {row['CustomerID']}<br>Product: {row['Product']}",
-                    hoverinfo="text",
-                    showlegend=False
-                ))
+            # Group by customer for the legend
+            for customer in allocation_df['CustomerID'].unique():
+                customer_orders = allocation_df[allocation_df['CustomerID'] == customer]
+                color = customer_color_map.get(customer, '#8c564b')  # Default brown if customer not in map
+                
+                for _, row in customer_orders.iterrows():
+                    delivery_date = pd.to_datetime(row['DeliveryDate'])
+                    fig2.add_trace(go.Scatter(
+                        x=[delivery_date],
+                        y=[row['BroodstockGroup']],
+                        mode="markers",
+                        marker=dict(
+                            symbol="circle",
+                            size=12,
+                            color=color,
+                            line=dict(color='black', width=1)
+                        ),
+                        name=customer,  # Use customer name for legend grouping
+                        text=f"Order {row['OrderID']}: {row['OrderedEggs']:,} eggs<br>Customer: {row['CustomerID']}<br>Product: {row['Product']}",
+                        hoverinfo="text",
+                        showlegend=True
+                    ))
 
         # Calculate date range with a small buffer (10% on each side)
         all_dates = []
@@ -526,6 +527,7 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
             height=500,
             showlegend=True,
             legend=dict(
+                title="Customers",
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
@@ -548,19 +550,6 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
             gridwidth=1,
             gridcolor='rgba(200, 200, 200, 0.3)'
         )
-
-        # Add annotations for broodstock group details
-        for i, group in enumerate(['A', 'B', 'C', 'D']):
-            group_data = roe_df[roe_df['BroodstockGroup'] == group]
-            if not group_data.empty:
-                fig2.add_annotation(
-                    x=min_date - pd.Timedelta(days=buffer_days/2),
-                    y=group,
-                    text=f"{group} Available",
-                    showarrow=False,
-                    font=dict(size=10),
-                    xanchor="right"
-                )
     else:
         # Create empty figures if no allocation
         fig1 = go.Figure()
@@ -615,15 +604,10 @@ app.index_string = '''
                 color: #2c3e50;
                 margin-bottom: 10px;
             }
-            .data-tables {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 20px;
-                margin-bottom: 20px;
-            }
-            .table-container {
-                flex: 1;
-                min-width: 300px;
+            .table-section {
+                margin-bottom: 25px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #eee;
             }
             .btn {
                 margin-top: 10px;
@@ -662,6 +646,11 @@ app.index_string = '''
             }
             .results-section, .visualization-section {
                 margin-top: 30px;
+            }
+            /* Make tables more responsive */
+            .dash-table-container {
+                max-width: 100%;
+                overflow-x: auto;
             }
         </style>
     </head>
