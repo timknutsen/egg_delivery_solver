@@ -408,7 +408,7 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
         allocation_viz["UsedEggs"] = allocation_viz["UsedEggs"].fillna(0)
         allocation_viz["RemainingEggs"] = allocation_viz["AdjustedProducedEggs"] - allocation_viz["UsedEggs"]
         
-        # Create stacked bar chart
+        # Create stacked bar chart for Roe Allocation
         fig1 = go.Figure()
         fig1.add_trace(go.Bar(
             x=allocation_viz["BroodstockGroup"],
@@ -437,51 +437,64 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
             )
         )
         
-        # Create timeline visualization
+        # Create improved timeline visualization
         fig2 = go.Figure()
-        
-        # Add roe availability periods
+
+        # Convert dates to datetime for plotting
+        roe_df['StartSaleDate'] = pd.to_datetime(roe_df['StartSaleDate'])
+        roe_df['ExpireDate'] = pd.to_datetime(roe_df['ExpireDate'])
+        orders_df['DeliveryDate'] = pd.to_datetime(orders_df['DeliveryDate'])
+
+        # Add roe availability periods (horizontal bars for each BroodstockGroup)
         for _, row in roe_df.iterrows():
             fig2.add_trace(go.Bar(
-                x=[row["BroodstockGroup"]],
-                y=[1],
-                base=0,
+                x=[row['StartSaleDate'], row['ExpireDate']],
+                y=[row['BroodstockGroup'], row['BroodstockGroup']],
+                orientation='h',
+                width=0,  # Use width 0 for bars, we'll handle width with marker
                 marker=dict(
                     color='rgba(55, 128, 191, 0.3)',
                     line=dict(color='rgba(55, 128, 191, 0.7)', width=2)
                 ),
                 name=f"{row['BroodstockGroup']} Available",
                 text=f"{row['AdjustedProducedEggs']:,} eggs",
-                hoverinfo="text",
-                showlegend=False
+                hoverinfo="text+x",
+                showlegend=True
             ))
-        
-        # Add order allocations
+
+        # Add order delivery points (markers on the timeline)
         if not allocation_df.empty:
             for _, row in allocation_df.iterrows():
+                delivery_date = pd.to_datetime(row['DeliveryDate'])
                 fig2.add_trace(go.Scatter(
-                    x=[row["BroodstockGroup"]],
-                    y=[0.5],
+                    x=[delivery_date],
+                    y=[row['BroodstockGroup']],
                     mode="markers",
                     marker=dict(
                         symbol="circle",
-                        size=15,
+                        size=10,
                         color="red"
                     ),
                     name=f"Order {row['OrderID']}",
                     text=f"Order {row['OrderID']}: {row['OrderedEggs']:,} eggs for {row['CustomerID']}",
-                    hoverinfo="text",
+                    hoverinfo="text+x",
                     showlegend=False
                 ))
-        
+
+        # Update layout for timeline
         fig2.update_layout(
             title="Roe Allocation Timeline",
-            xaxis_title="Broodstock Group",
-            yaxis=dict(
-                showticklabels=False,
-                showgrid=False
+            xaxis_title="Date",
+            yaxis_title="Broodstock Group",
+            xaxis=dict(
+                type="date",
+                tickformat="%Y-%m-%d"
             ),
-            height=300
+            yaxis=dict(
+                autorange="reversed"  # Reverse y-axis to show A at top, D at bottom
+            ),
+            height=500,
+            showlegend=True
         )
     else:
         # Create empty figures if no allocation
