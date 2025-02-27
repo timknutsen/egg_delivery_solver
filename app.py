@@ -445,24 +445,35 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
         roe_df['ExpireDate'] = pd.to_datetime(roe_df['ExpireDate'])
         orders_df['DeliveryDate'] = pd.to_datetime(orders_df['DeliveryDate'])
 
-        # Add roe availability periods (horizontal bars for each BroodstockGroup)
+        # Define color mapping for broodstock groups
+        color_map = {
+            'A': 'rgba(100, 149, 237, 0.6)',  # Cornflower blue
+            'B': 'rgba(144, 238, 144, 0.6)',  # Light green
+            'C': 'rgba(255, 182, 193, 0.6)',  # Light pink
+            'D': 'rgba(255, 218, 185, 0.6)'   # Peach
+        }
+
+        # Add roe availability periods with better colors
         for _, row in roe_df.iterrows():
+            group = row['BroodstockGroup']
+            color = color_map.get(group, 'rgba(55, 128, 191, 0.6)')
+            
             fig2.add_trace(go.Bar(
-                x=[row['StartSaleDate'], row['ExpireDate']],
-                y=[row['BroodstockGroup'], row['BroodstockGroup']],
+                x=[row['ExpireDate'] - row['StartSaleDate']],  # Duration
+                y=[group],
                 orientation='h',
-                width=0,  # Use width 0 for bars, we'll handle width with marker
+                base=[row['StartSaleDate']],  # Start date
                 marker=dict(
-                    color='rgba(55, 128, 191, 0.3)',
-                    line=dict(color='rgba(55, 128, 191, 0.7)', width=2)
+                    color=color,
+                    line=dict(color='rgba(50, 50, 50, 0.8)', width=1)
                 ),
-                name=f"{row['BroodstockGroup']} Available",
-                text=f"{row['AdjustedProducedEggs']:,} eggs",
-                hoverinfo="text+x",
+                name=f"{group} Available",
+                text=f"{group}: {row['AdjustedProducedEggs']:,} eggs<br>{row['Product']}<br>Quality: {row['QualityScore']}",
+                hoverinfo="text",
                 showlegend=True
             ))
 
-        # Add order delivery points (markers on the timeline)
+        # Add order delivery points with better visibility
         if not allocation_df.empty:
             for _, row in allocation_df.iterrows():
                 delivery_date = pd.to_datetime(row['DeliveryDate'])
@@ -472,30 +483,84 @@ def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_day
                     mode="markers",
                     marker=dict(
                         symbol="circle",
-                        size=10,
-                        color="red"
+                        size=12,
+                        color="red",
+                        line=dict(color='black', width=1)
                     ),
                     name=f"Order {row['OrderID']}",
-                    text=f"Order {row['OrderID']}: {row['OrderedEggs']:,} eggs for {row['CustomerID']}",
-                    hoverinfo="text+x",
+                    text=f"Order {row['OrderID']}: {row['OrderedEggs']:,} eggs<br>Customer: {row['CustomerID']}<br>Product: {row['Product']}",
+                    hoverinfo="text",
                     showlegend=False
                 ))
 
-        # Update layout for timeline
+        # Calculate date range with a small buffer (10% on each side)
+        all_dates = []
+        for _, row in roe_df.iterrows():
+            all_dates.extend([row['StartSaleDate'], row['ExpireDate']])
+        for _, row in orders_df.iterrows():
+            all_dates.append(pd.to_datetime(row['DeliveryDate']))
+
+        min_date = min(all_dates)
+        max_date = max(all_dates)
+        date_range = (max_date - min_date).days
+        buffer_days = max(date_range * 0.1, 5)  # At least 5 days buffer
+
+        # Update layout for timeline with improved date range
         fig2.update_layout(
             title="Roe Allocation Timeline",
             xaxis_title="Date",
             yaxis_title="Broodstock Group",
             xaxis=dict(
                 type="date",
-                tickformat="%Y-%m-%d"
+                tickformat="%Y-%m-%d",
+                range=[
+                    (min_date - pd.Timedelta(days=buffer_days)).strftime('%Y-%m-%d'),
+                    (max_date + pd.Timedelta(days=buffer_days)).strftime('%Y-%m-%d')
+                ]
             ),
             yaxis=dict(
-                autorange="reversed"  # Reverse y-axis to show A at top, D at bottom
+                autorange="reversed",  # Reverse y-axis to show A at top, D at bottom
+                categoryorder='array',
+                categoryarray=['A', 'B', 'C', 'D']
             ),
             height=500,
-            showlegend=True
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            ),
+            plot_bgcolor='rgba(240, 240, 240, 0.5)',
+            hovermode="closest"
         )
+
+        # Add a grid for better readability
+        fig2.update_xaxes(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='rgba(200, 200, 200, 0.3)'
+        )
+
+        fig2.update_yaxes(
+            showgrid=True,
+            gridwidth=1,
+            gridcolor='rgba(200, 200, 200, 0.3)'
+        )
+
+        # Add annotations for broodstock group details
+        for i, group in enumerate(['A', 'B', 'C', 'D']):
+            group_data = roe_df[roe_df['BroodstockGroup'] == group]
+            if not group_data.empty:
+                fig2.add_annotation(
+                    x=min_date - pd.Timedelta(days=buffer_days/2),
+                    y=group,
+                    text=f"{group} Available",
+                    showarrow=False,
+                    font=dict(size=10),
+                    xanchor="right"
+                )
     else:
         # Create empty figures if no allocation
         fig1 = go.Figure()
