@@ -283,9 +283,8 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
         prob += pulp.lpSum(2 * allocation_vars[order, group] for order in nst_orders for group in roe_df["BroodstockGroup"]) + \
                 pulp.lpSum(allocation_vars[order, group] for order in orders_df["OrderID"] if order not in nst_orders for group in roe_df["BroodstockGroup"])
 
-    # Solve problem
-    from pulp import GLPK_CMD
-    prob.solve(GLPK_CMD(msg=False))
+    # Solve problem using CBC solver instead of GLPK
+    prob.solve(pulp.PULP_CBC_CMD(msg=0))
 
     # Collect results
     allocation_results = []
