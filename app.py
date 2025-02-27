@@ -5,16 +5,17 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pulp
 from datetime import datetime
-import numpy as np
 import os  # Added os import for environment variables
 
-# Enhanced sample data with more realistic fields
+# Enhanced sample data with additional fields
 orders_data = pd.DataFrame({
     "OrderID": [1, 2, 3, 4, 5],
-    "CustomerID": ["C1", "C2", "C3", "C4", "NST"],  # NST is a special partner
+    "CustomerID": ["C1", "C2", "C3", "mowi", "NST"],  # Updated C4 to mowi
     "OrderedEggs": [50000, 70000, 60000, 80000, 45000],
     "Product": ["Standard", "Premium", "Standard", "Premium", "Standard"],
     "DeliveryDate": ["2025-03-10", "2025-03-15", "2025-03-20", "2025-03-25", "2025-03-12"],
+    "GeographicPreference": ["Steigen", "Hemne", "Erfjord", "Steigen", "Steigen"],  # Example geographic preference
+    "CoolingPreference": [False, True, False, True, False]  # Example cooling preference
 })
 
 roe_data = pd.DataFrame({
@@ -24,6 +25,11 @@ roe_data = pd.DataFrame({
     "Product": ["Standard", "Premium", "Standard", "Premium"],
     "StartSaleDate": ["2025-02-15", "2025-02-20", "2025-02-25", "2025-03-01"],
     "ExpireDate": ["2025-04-15", "2025-04-20", "2025-04-25", "2025-05-01"],
+    "BroadfishCycle": ["Cycle1", "Cycle2", "Cycle1", "Cycle2"],  # New field for Broadfish Cycle
+    "GainPercentage": [80, 60, 90, 70],  # New field for sustainability (GAIN %)
+    "QualityScore": [85, 90, 75, 88],  # New field for quality
+    "PDStatus": ["PD-Free", "PD-Free", "PD-Present", "PD-Free"],  # New field for screening status (PD)
+    "CoolingCapacity": [True, True, False, True]  # New field for cooling capacity
 })
 
 # Initialize Dash app with a better theme
@@ -47,7 +53,9 @@ app.layout = html.Div([
                     {"name": "Customer", "id": "CustomerID"},
                     {"name": "Eggs Ordered", "id": "OrderedEggs", "type": "numeric", "format": {"specifier": ","}},
                     {"name": "Product Type", "id": "Product"},
-                    {"name": "Delivery Date", "id": "DeliveryDate"}
+                    {"name": "Delivery Date", "id": "DeliveryDate"},
+                    {"name": "Geographic Preference", "id": "GeographicPreference"},
+                    {"name": "Cooling Preference", "id": "CoolingPreference", "type": "boolean"}
                 ],
                 data=orders_data.to_dict("records"),
                 editable=True,
@@ -75,7 +83,12 @@ app.layout = html.Div([
                     {"name": "Location", "id": "Location"},
                     {"name": "Product Type", "id": "Product"},
                     {"name": "Sale Start", "id": "StartSaleDate"},
-                    {"name": "Expiry Date", "id": "ExpireDate"}
+                    {"name": "Expiry Date", "id": "ExpireDate"},
+                    {"name": "Broadfish Cycle", "id": "BroadfishCycle"},
+                    {"name": "Gain %", "id": "GainPercentage", "type": "numeric", "format": {"specifier": ".0f"}},
+                    {"name": "Quality Score", "id": "QualityScore", "type": "numeric", "format": {"specifier": ".0f"}},
+                    {"name": "PD Status", "id": "PDStatus"},
+                    {"name": "Cooling Capacity", "id": "CoolingCapacity", "type": "boolean"}
                 ],
                 data=roe_data.to_dict("records"),
                 editable=True,
@@ -103,7 +116,9 @@ app.layout = html.Div([
                 options=[
                     {"label": "Maximize fulfilled orders", "value": "max_orders"},
                     {"label": "Minimize waste", "value": "min_waste"},
-                    {"label": "Prioritize NST partners", "value": "priority_nst"}
+                    {"label": "Prioritize NST partners", "value": "priority_nst"},
+                    {"label": "Increase Broodstock Groups", "value": "increase_groups"},
+                    {"label": "Decrease Broodstock Groups", "value": "decrease_groups"}
                 ],
                 value="max_orders"
             ),
@@ -113,9 +128,24 @@ app.layout = html.Div([
                 options=[
                     {"label": "NST partners get priority for Steigen roe", "value": "nst_priority"},
                     {"label": "Match product types", "value": "product_match"},
-                    {"label": "Respect delivery/expiry dates", "value": "date_constraints"}
+                    {"label": "Respect delivery/expiry dates", "value": "date_constraints"},
+                    {"label": "Geographic preference", "value": "geo_preference"},
+                    {"label": "Minimum Gain % (70%)", "value": "gain_constraint"},
+                    {"label": "Minimum Quality Score (80)", "value": "quality_constraint"},
+                    {"label": "PD-Free only", "value": "pd_free"},
+                    {"label": "Cooling capacity match", "value": "cooling_match"},
+                    {"label": "Temperature Treatment Scenario", "value": "temp_treatment"}
                 ],
                 value=["nst_priority", "product_match"]
+            ),
+            html.Label("Temperature Treatment (days added to storage):"),
+            dcc.Slider(
+                id="temp-treatment-slider",
+                min=0,
+                max=30,
+                step=5,
+                value=0,
+                marks={i: f'{i}d' for i in range(0, 31, 5)}
             ),
         ], className="settings-panel"),
         
@@ -166,7 +196,9 @@ def add_order_row(n_clicks, rows):
             "CustomerID": "",
             "OrderedEggs": 0,
             "Product": "",
-            "DeliveryDate": ""
+            "DeliveryDate": "",
+            "GeographicPreference": "",
+            "CoolingPreference": False
         })
     return rows
 
@@ -184,7 +216,12 @@ def add_roe_row(n_clicks, rows):
             "Location": "",
             "Product": "",
             "StartSaleDate": "",
-            "ExpireDate": ""
+            "ExpireDate": "",
+            "BroadfishCycle": "",
+            "GainPercentage": 0,
+            "QualityScore": 0,
+            "PDStatus": "",
+            "CoolingCapacity": False
         })
     return rows
 
@@ -198,18 +235,27 @@ def add_roe_row(n_clicks, rows):
     [State("orders-table", "data"),
      State("roe-table", "data"),
      State("objective-dropdown", "value"),
-     State("constraints-checklist", "value")],
+     State("constraints-checklist", "value"),
+     State("temp-treatment-slider", "value")],
     prevent_initial_call=True
 )
-def run_solver(n_clicks, orders, roe, objective, constraints):
+def run_solver(n_clicks, orders, roe, objective, constraints, temp_treatment_days):
     # Convert to DataFrames
     orders_df = pd.DataFrame(orders)
     roe_df = pd.DataFrame(roe)
     
     # Convert numeric columns
-    orders_df["OrderedEggs"] = pd.to_numeric(orders_df["OrderedEggs"])
-    roe_df["ProducedEggs"] = pd.to_numeric(roe_df["ProducedEggs"])
-    
+    orders_df["OrderedEggs"] = pd.to_numeric(orders_df["OrderedEggs"], errors='coerce')
+    roe_df["ProducedEggs"] = pd.to_numeric(roe_df["ProducedEggs"], errors='coerce')
+    roe_df["GainPercentage"] = pd.to_numeric(roe_df["GainPercentage"], errors='coerce')
+    roe_df["QualityScore"] = pd.to_numeric(roe_df["QualityScore"], errors='coerce')
+
+    # Adjust roe availability based on temperature treatment (simplified simulation)
+    if "temp_treatment" in constraints:
+        roe_df["AdjustedProducedEggs"] = roe_df["ProducedEggs"] * (1 - (temp_treatment_days / 30) * 0.1)  # 10% reduction per 30 days
+    else:
+        roe_df["AdjustedProducedEggs"] = roe_df["ProducedEggs"]
+
     # Define LP problem
     prob = pulp.LpProblem("Roe_Allocation", pulp.LpMaximize)
     
@@ -221,10 +267,10 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
     for order in orders_df["OrderID"]:
         prob += pulp.lpSum(allocation_vars[order, group] for group in roe_df["BroodstockGroup"]) <= 1
 
-    # Constraint: Each group's allocated eggs cannot exceed its production capacity
+    # Constraint: Each group's allocated eggs cannot exceed its adjusted production capacity
     for group in roe_df["BroodstockGroup"]:
         prob += pulp.lpSum(allocation_vars[order, group] * orders_df.loc[orders_df["OrderID"] == order, "OrderedEggs"].values[0]
-                           for order in orders_df["OrderID"]) <= roe_df.loc[roe_df["BroodstockGroup"] == group, "ProducedEggs"].values[0]
+                           for order in orders_df["OrderID"]) <= roe_df.loc[roe_df["BroodstockGroup"] == group, "AdjustedProducedEggs"].values[0]
     
     # Additional constraints based on user selection
     if "product_match" in constraints:
@@ -240,16 +286,13 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
         steigen_groups = roe_df[roe_df["Location"] == "Steigen"]["BroodstockGroup"].tolist()
         nst_orders = orders_df[orders_df["CustomerID"] == "NST"]["OrderID"].tolist()
         
-        # Add a constraint that gives NST priority for Steigen roe
         for group in steigen_groups:
             for order in orders_df["OrderID"]:
                 if order not in nst_orders:
-                    # Non-NST orders can only use Steigen roe if there's enough for NST
                     nst_demand = sum(orders_df.loc[orders_df["OrderID"].isin(nst_orders), "OrderedEggs"])
-                    steigen_capacity = sum(roe_df.loc[roe_df["BroodstockGroup"].isin(steigen_groups), "ProducedEggs"])
+                    steigen_capacity = sum(roe_df.loc[roe_df["BroodstockGroup"].isin(steigen_groups), "AdjustedProducedEggs"])
                     
                     if nst_demand > 0 and nst_demand <= steigen_capacity:
-                        # Add a constraint that ensures NST orders are fulfilled first
                         prob += allocation_vars[order, group] <= pulp.lpSum(
                             allocation_vars[nst_order, steigen_group] 
                             for nst_order in nst_orders 
@@ -263,17 +306,50 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
                 group_start = pd.to_datetime(roe_df.loc[roe_df["BroodstockGroup"] == group, "StartSaleDate"].values[0])
                 group_expire = pd.to_datetime(roe_df.loc[roe_df["BroodstockGroup"] == group, "ExpireDate"].values[0])
                 
-                # Can't use roe before it's available or after it expires
                 if order_delivery < group_start or order_delivery > group_expire:
                     prob += allocation_vars[order, group] == 0
     
+    if "geo_preference" in constraints:
+        for order in orders_df["OrderID"]:
+            order_geo = orders_df.loc[orders_df["OrderID"] == order, "GeographicPreference"].values[0]
+            for group in roe_df["BroodstockGroup"]:
+                group_location = roe_df.loc[roe_df["BroodstockGroup"] == group, "Location"].values[0]
+                if order_geo and order_geo != group_location:
+                    prob += allocation_vars[order, group] == 0
+    
+    if "gain_constraint" in constraints:
+        for group in roe_df["BroodstockGroup"]:
+            if roe_df.loc[roe_df["BroodstockGroup"] == group, "GainPercentage"].values[0] < 70:
+                for order in orders_df["OrderID"]:
+                    prob += allocation_vars[order, group] == 0
+    
+    if "quality_constraint" in constraints:
+        for group in roe_df["BroodstockGroup"]:
+            if roe_df.loc[roe_df["BroodstockGroup"] == group, "QualityScore"].values[0] < 80:
+                for order in orders_df["OrderID"]:
+                    prob += allocation_vars[order, group] == 0
+    
+    if "pd_free" in constraints:
+        for group in roe_df["BroodstockGroup"]:
+            if roe_df.loc[roe_df["BroodstockGroup"] == group, "PDStatus"].values[0] != "PD-Free":
+                for order in orders_df["OrderID"]:
+                    prob += allocation_vars[order, group] == 0
+    
+    if "cooling_match" in constraints:
+        for order in orders_df["OrderID"]:
+            order_cooling = orders_df.loc[orders_df["OrderID"] == order, "CoolingPreference"].values[0]
+            for group in roe_df["BroodstockGroup"]:
+                group_cooling = roe_df.loc[roe_df["BroodstockGroup"] == group, "CoolingCapacity"].values[0]
+                if order_cooling and not group_cooling:
+                    prob += allocation_vars[order, group] == 0
+
     # Set objective based on user selection
     if objective == "max_orders":
         # Maximize the number of assigned orders
         prob += pulp.lpSum(allocation_vars[order, group] for order in orders_df["OrderID"] for group in roe_df["BroodstockGroup"])
     elif objective == "min_waste":
         # Minimize unused roe
-        total_roe = sum(roe_df["ProducedEggs"])
+        total_roe = sum(roe_df["AdjustedProducedEggs"])
         used_roe = pulp.lpSum(allocation_vars[order, group] * orders_df.loc[orders_df["OrderID"] == order, "OrderedEggs"].values[0]
                              for order in orders_df["OrderID"] for group in roe_df["BroodstockGroup"])
         prob += used_roe  # Maximize used roe = minimize waste
@@ -282,8 +358,18 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
         nst_orders = orders_df[orders_df["CustomerID"] == "NST"]["OrderID"].tolist()
         prob += pulp.lpSum(2 * allocation_vars[order, group] for order in nst_orders for group in roe_df["BroodstockGroup"]) + \
                 pulp.lpSum(allocation_vars[order, group] for order in orders_df["OrderID"] if order not in nst_orders for group in roe_df["BroodstockGroup"])
+    elif objective == "increase_groups":
+        # Increase allocation to groups with higher GainPercentage or QualityScore
+        prob += pulp.lpSum(allocation_vars[order, group] * (roe_df.loc[roe_df["BroodstockGroup"] == group, "GainPercentage"].values[0] + 
+                                                            roe_df.loc[roe_df["BroodstockGroup"] == group, "QualityScore"].values[0])
+                           for order in orders_df["OrderID"] for group in roe_df["BroodstockGroup"])
+    elif objective == "decrease_groups":
+        # Decrease allocation to groups with lower GainPercentage or QualityScore
+        prob += pulp.lpSum(allocation_vars[order, group] * (100 - (roe_df.loc[roe_df["BroodstockGroup"] == group, "GainPercentage"].values[0] + 
+                                                                   roe_df.loc[roe_df["BroodstockGroup"] == group, "QualityScore"].values[0]) / 2)
+                           for order in orders_df["OrderID"] for group in roe_df["BroodstockGroup"])
 
-    # Solve problem using CBC solver instead of GLPK
+    # Solve problem using CBC solver
     prob.solve(pulp.PULP_CBC_CMD(msg=0))
 
     # Collect results
@@ -299,7 +385,10 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
                 "BroodstockGroup": group,
                 "Location": group_row["Location"],
                 "Product": order_row["Product"],
-                "DeliveryDate": order_row["DeliveryDate"]
+                "DeliveryDate": order_row["DeliveryDate"],
+                "BroadfishCycle": group_row["BroadfishCycle"],
+                "GainPercentage": group_row["GainPercentage"],
+                "QualityScore": group_row["QualityScore"]
             })
 
     allocation_df = pd.DataFrame(allocation_results)
@@ -317,7 +406,7 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
         # Merge with roe data to get total available
         allocation_viz = pd.merge(roe_df, used_eggs, on="BroodstockGroup", how="left")
         allocation_viz["UsedEggs"] = allocation_viz["UsedEggs"].fillna(0)
-        allocation_viz["RemainingEggs"] = allocation_viz["ProducedEggs"] - allocation_viz["UsedEggs"]
+        allocation_viz["RemainingEggs"] = allocation_viz["AdjustedProducedEggs"] - allocation_viz["UsedEggs"]
         
         # Create stacked bar chart
         fig1 = go.Figure()
@@ -362,7 +451,7 @@ def run_solver(n_clicks, orders, roe, objective, constraints):
                     line=dict(color='rgba(55, 128, 191, 0.7)', width=2)
                 ),
                 name=f"{row['BroodstockGroup']} Available",
-                text=f"{row['ProducedEggs']:,} eggs",
+                text=f"{row['AdjustedProducedEggs']:,} eggs",
                 hoverinfo="text",
                 showlegend=False
             ))
