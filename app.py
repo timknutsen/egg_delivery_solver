@@ -5,18 +5,18 @@ import plotly.graph_objects as go
 import pulp
 import os
 
-# Simplified sample data with essential columns only
+# Scaled-up sample data to match Odin's scale (multiply by 10,000)
 orders_data = pd.DataFrame({
     "OrderID": [1, 2, 3, 4, 5],
     "CustomerID": ["C1", "C2", "C3", "mowi", "NST"],
-    "OrderedEggs": [50000, 70000, 60000, 80000, 45000],
+    "OrderedEggs": [50000 * 10000, 70000 * 10000, 60000 * 10000, 80000 * 10000, 45000 * 10000],  # Now in millions range
     "Product": ["Standard", "Premium", "Standard", "Premium", "Standard"],
     "DeliveryDate": ["2025-03-10", "2025-03-15", "2025-03-20", "2025-03-25", "2025-03-12"]
 })
 
 roe_data = pd.DataFrame({
     "BroodstockGroup": ["A", "B", "C", "D"],
-    "ProducedEggs": [100000, 120000, 90000, 80000],
+    "ProducedEggs": [100000 * 10000, 120000 * 10000, 90000 * 10000, 80000 * 10000],  # Now in millions range
     "Location": ["Steigen", "Hemne", "Erfjord", "Steigen"],
     "Product": ["Standard", "Premium", "Standard", "Premium"],
     "StartSaleDate": ["2025-02-15", "2025-02-20", "2025-02-25", "2025-03-01"],
@@ -220,7 +220,8 @@ def run_solver(n_clicks, orders, roe, constraints):
     start_date = min(all_dates)
     end_date = max(all_dates)
     weeks = pd.date_range(start=start_date, end=end_date, freq='W-MON')  # Weekly intervals starting on Mondays
-    week_labels = [f"{d.year}-{d.isocalendar().week}" for d in weeks]
+    # Use "YYYY-WW" format for week labels
+    week_labels = [f"{d.year}-{d.isocalendar().week:02d}" for d in weeks]
 
     # Step 2: Calculate available roe per week (Egg Buffer)
     egg_buffer = []
@@ -250,7 +251,7 @@ def run_solver(n_clicks, orders, roe, constraints):
 
     # Step 5: Calculate Buffer % (assume "last period" is the first week's buffer)
     last_period_buffer = remaining_buffer[0] if remaining_buffer else 1  # Avoid division by zero
-    buffer_percent = [((buf / last_period_buffer) * 100) if last_period_buffer != 0 else 0 for buf in remaining_buffer]
+    buffer_percent = [min((buf / last_period_buffer) * 100, 100) if last_period_buffer != 0 else 0 for buf in remaining_buffer]  # Cap at 100%
 
     # Step 6: Calculate Buffer on 2025-02-04
     ref_date = pd.to_datetime("2025-02-04")
@@ -272,7 +273,7 @@ def run_solver(n_clicks, orders, roe, constraints):
         title="Egg Buffer & Buffer % with Last Period Buffer",
         xaxis_title="Week",
         yaxis=dict(title="Egg Buffer (Millions)", side="left"),
-        yaxis2=dict(title="Buffer %", overlaying="y", side="right"),
+        yaxis2=dict(title="Buffer %", overlaying="y", side="right", range=[0, 100]),  # Cap Y-axis at 100%
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         height=500
     )
