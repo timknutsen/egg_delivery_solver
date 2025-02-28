@@ -104,7 +104,7 @@ app.layout = html.Div([
     html.Div([
         html.H3("Visualization"),
         dcc.Tabs([
-            dcc.Tab(label="Roe Allocation", children=[dcc.Graph(id="roe-allocation-graph")]),
+            dcc.Tab(label="Egg Buffer Over Time", children=[dcc.Graph(id="roe-allocation-graph")]),
             dcc.Tab(label="Timeline View", children=[dcc.Graph(id="timeline-graph")]),
         ])
     ], className="visualization-section")
@@ -148,6 +148,7 @@ def run_solver(n_clicks, orders, roe, constraints):
     orders_df["OrderedEggs"] = pd.to_numeric(orders_df["OrderedEggs"], errors='coerce')
     roe_df["ProducedEggs"] = pd.to_numeric(roe_df["ProducedEggs"], errors='coerce')
 
+    # Run the solver
     prob = pulp.LpProblem("Roe_Allocation", pulp.LpMaximize)
     allocation_vars = {(order, group): pulp.LpVariable(f"x_{order}_{group}", cat="Binary") 
                        for order in orders_df["OrderID"] for group in roe_df["BroodstockGroup"]}
@@ -188,6 +189,7 @@ def run_solver(n_clicks, orders, roe, constraints):
     prob += pulp.lpSum(allocation_vars[order, group] for order in orders_df["OrderID"] for group in roe_df["BroodstockGroup"])
     prob.solve(pulp.PULP_CBC_CMD(msg=0))
 
+    # Collect allocation results
     allocation_results = []
     for (order, group), var in allocation_vars.items():
         if var.varValue == 1:
@@ -207,41 +209,97 @@ def run_solver(n_clicks, orders, roe, constraints):
     fulfilled_orders = allocation_df["OrderID"].unique() if not allocation_df.empty else []
     unfulfilled_orders = orders_df[~orders_df["OrderID"].isin(fulfilled_orders)]
 
-    if not allocation_df.empty:
-        used_eggs = allocation_df.groupby("BroodstockGroup")["OrderedEggs"].sum().reset_index().rename(columns={"OrderedEggs": "UsedEggs"})
-        allocation_viz = pd.merge(roe_df, used_eggs, on="BroodstockGroup", how="left").fillna(0)
-        allocation_viz["RemainingEggs"] = allocation_viz["ProducedEggs"] - allocation_viz["UsedEggs"]
+    # Calculate weekly buffer for the new graph
+    # Step 1: Determine the range of weeks
+    all_dates = []
+    for _, row in roe_df.iterrows():
+        all_dates.extend([pd.to_datetime(row['StartSaleDate']), pd.to_datetime(row['ExpireDate'])])
+    for _, row in orders_df.iterrows():
+        all_dates.append(pd.to_datetime(row['DeliveryDate']))
+    
+    start_date = min(all_dates)
+    end_date = max(all_dates)
+    weeks = pd.date_range(start=start_date, end=end_date, freq='W-MON')  # Weekly intervals starting on Mondays
+    week_labels = [f"{d.year}-{d.isocalendar().week}" for d in weeks]
 
-        fig1 = go.Figure()
-        fig1.add_trace(go.Bar(x=allocation_viz["BroodstockGroup"], y=allocation_viz["UsedEggs"], name="Used Eggs", marker_color='#1f77b4'))
-        fig1.add_trace(go.Bar(x=allocation_viz["BroodstockGroup"], y=allocation_viz["RemainingEggs"], name="Remaining Eggs", marker_color='#2ca02c'))
-        fig1.update_layout(title="Roe Allocation by Broodstock Group", xaxis_title="Broodstock Group", yaxis_title="Eggs", barmode='stack')
-
-        fig2 = go.Figure()
-        roe_df['StartSaleDate'] = pd.to_datetime(roe_df['StartSaleDate'])
-        roe_df['ExpireDate'] = pd.to_datetime(roe_df['ExpireDate'])
-        orders_df['DeliveryDate'] = pd.to_datetime(orders_df['DeliveryDate'])
-
+    # Step 2: Calculate available roe per week (Egg Buffer)
+    egg_buffer = []
+    for week_start in weeks:
+        week_end = week_start + pd.Timedelta(days=6)
+        available_roe = 0
         for _, row in roe_df.iterrows():
-            fig2.add_trace(go.Bar(x=[row['ExpireDate'] - row['StartSaleDate']], y=[row['BroodstockGroup']], orientation='h', 
-                                  base=[row['StartSaleDate']], marker=dict(color='rgba(200, 200, 200, 0.3)'), 
-                                  name=f"{row['BroodstockGroup']} Available", text=f"{row['BroodstockGroup']}: {row['ProducedEggs']:,} eggs<br>{row['Product']}", 
-                                  hoverinfo="text", showlegend=False))
+            start_sale = pd.to_datetime(row['StartSaleDate'])
+            expire = pd.to_datetime(row['ExpireDate'])
+            if start_sale <= week_end and expire >= week_start:
+                available_roe += row['ProducedEggs']
+        egg_buffer.append(available_roe / 1_000_000)  # Convert to millions
 
-        if not allocation_df.empty:
-            for customer in allocation_df['CustomerID'].unique():
-                customer_orders = allocation_df[allocation_df['CustomerID'] == customer]
-                for _, row in customer_orders.iterrows():
-                    delivery_date = pd.to_datetime(row['DeliveryDate'])
-                    fig2.add_trace(go.Scatter(x=[delivery_date], y=[row['BroodstockGroup']], mode="markers", marker=dict(size=12, color='#1f77b4'), 
-                                              name=customer, text=f"Order {row['OrderID']}: {row['OrderedEggs']:,} eggs<br>Customer: {row['CustomerID']}<br>Product: {row['Product']}", 
-                                              hoverinfo="text", showlegend=True))
+    # Step 3: Calculate allocated roe per week
+    allocated_roe_weekly = [0] * len(weeks)
+    if not allocation_df.empty:
+        for _, row in allocation_df.iterrows():
+            delivery_date = pd.to_datetime(row['DeliveryDate'])
+            for i, week_start in enumerate(weeks):
+                week_end = week_start + pd.Timedelta(days=6)
+                if week_start <= delivery_date <= week_end:
+                    allocated_roe_weekly[i] += row['OrderedEggs'] / 1_000_000  # Convert to millions
+                    break
 
-        fig2.update_layout(title="Roe Allocation Timeline", xaxis_title="Date", yaxis_title="Broodstock Group", 
-                           xaxis_type="date", yaxis_autorange="reversed", height=500, showlegend=True)
-    else:
-        fig1 = go.Figure().update_layout(title="No allocation data available")
-        fig2 = go.Figure().update_layout(title="No timeline data available")
+    # Step 4: Calculate remaining buffer
+    remaining_buffer = [max(egg - alloc, 0) for egg, alloc in zip(egg_buffer, allocated_roe_weekly)]
+
+    # Step 5: Calculate Buffer % (assume "last period" is the first week's buffer)
+    last_period_buffer = remaining_buffer[0] if remaining_buffer else 1  # Avoid division by zero
+    buffer_percent = [((buf / last_period_buffer) * 100) if last_period_buffer != 0 else 0 for buf in remaining_buffer]
+
+    # Step 6: Calculate Buffer on 2025-02-04
+    ref_date = pd.to_datetime("2025-02-04")
+    ref_buffer = 0
+    for i, week_start in enumerate(weeks):
+        week_end = week_start + pd.Timedelta(days=6)
+        if week_start <= ref_date <= week_end:
+            ref_buffer = remaining_buffer[i]
+            break
+
+    # Create the new Egg Buffer graph
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(x=week_labels, y=egg_buffer, fill='tozeroy', name="Egg Buffer", fillcolor='rgba(255, 165, 0, 0.5)', line=dict(color='orange')))
+    fig1.add_trace(go.Scatter(x=week_labels, y=remaining_buffer, name="Buffer", line=dict(color='black')))
+    fig1.add_trace(go.Scatter(x=week_labels, y=[ref_buffer] * len(week_labels), name="Buffer 04.02.25", line=dict(color='green', dash='dash')))
+    fig1.add_trace(go.Scatter(x=week_labels, y=buffer_percent, name="Buffer %", line=dict(color='green'), yaxis="y2"))
+
+    fig1.update_layout(
+        title="Egg Buffer & Buffer % with Last Period Buffer",
+        xaxis_title="Week",
+        yaxis=dict(title="Egg Buffer (Millions)", side="left"),
+        yaxis2=dict(title="Buffer %", overlaying="y", side="right"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=500
+    )
+
+    # Timeline graph (unchanged from original)
+    fig2 = go.Figure()
+    roe_df['StartSaleDate'] = pd.to_datetime(roe_df['StartSaleDate'])
+    roe_df['ExpireDate'] = pd.to_datetime(roe_df['ExpireDate'])
+    orders_df['DeliveryDate'] = pd.to_datetime(orders_df['DeliveryDate'])
+
+    for _, row in roe_df.iterrows():
+        fig2.add_trace(go.Bar(x=[row['ExpireDate'] - row['StartSaleDate']], y=[row['BroodstockGroup']], orientation='h', 
+                              base=[row['StartSaleDate']], marker=dict(color='rgba(200, 200, 200, 0.3)'), 
+                              name=f"{row['BroodstockGroup']} Available", text=f"{row['BroodstockGroup']}: {row['ProducedEggs']:,} eggs<br>{row['Product']}", 
+                              hoverinfo="text", showlegend=False))
+
+    if not allocation_df.empty:
+        for customer in allocation_df['CustomerID'].unique():
+            customer_orders = allocation_df[allocation_df['CustomerID'] == customer]
+            for _, row in customer_orders.iterrows():
+                delivery_date = pd.to_datetime(row['DeliveryDate'])
+                fig2.add_trace(go.Scatter(x=[delivery_date], y=[row['BroodstockGroup']], mode="markers", marker=dict(size=12, color='#1f77b4'), 
+                                          name=customer, text=f"Order {row['OrderID']}: {row['OrderedEggs']:,} eggs<br>Customer: {row['CustomerID']}<br>Product: {row['Product']}", 
+                                          hoverinfo="text", showlegend=True))
+
+    fig2.update_layout(title="Roe Allocation Timeline", xaxis_title="Date", yaxis_title="Broodstock Group", 
+                       xaxis_type="date", yaxis_autorange="reversed", height=500, showlegend=True)
 
     unfulfilled_html = html.Div([html.H4("Unfulfilled Orders", style={"color": "red"}), 
                                  html.P(f"There are {len(unfulfilled_orders)} orders that could not be fulfilled:")]) if len(unfulfilled_orders) > 0 else html.P("All orders have been fulfilled!", style={"color": "green"})
