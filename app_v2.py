@@ -324,4 +324,18 @@ def update_ui_with_results(calculation_results):
         return [], [], html.Div(f"Error: {str(e)}", style={'color': 'red'}), go.Figure(layout={'title': f'Error: {str(e)}'})
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    import os
+    
+    # Get port from environment variable (Render.com sets this)
+    # Default to 10000 if not set (for local development)
+    port = int(os.environ.get('PORT', 10000))
+    
+    # In production (like on Render.com), we want to listen on 0.0.0.0
+    # This allows the app to be accessible from outside the container
+    host = '0.0.0.0'
+    
+    # Set debug to False in production
+    debug = os.environ.get('DEBUG', 'True').lower() == 'true'
+    
+    print(f"Starting server on {host}:{port} with debug={debug}")
+    app.run_server(host=host, port=port, debug=debug)
