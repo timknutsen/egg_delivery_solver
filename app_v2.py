@@ -8,25 +8,25 @@ import time
 import os
 from optimization import binary_allocation, partial_allocation
 
-# Sample data (replace with your actual data loading)
+# Sample data
 salmon_producers = ["Mowi ASA", "Lerøy Seafood Group", "SalMar ASA", "Cermaq Group ASA", "Bakkafrost"]
 product_types = ["Shield", "Gain (Premium)"]
 
 orders_data = pd.DataFrame({
-    "OrderID": [1, 2, 3, 4, 5, 6],
-    "CustomerID": ["Mowi ASA", "SalMar ASA", "Bakkafrost", "Lerøy Seafood Group", "Mowi ASA", "SalMar ASA"],
-    "OrderedEggs": [50000, 40000, 50000, 80000, 60000, 70000],
-    "Product": ["Shield", "Shield", "Shield", "Gain (Premium)", "Gain (Premium)", "Shield"],
-    "DeliveryDate": ["2025-03-10", "2025-03-15", "2025-03-20", "2025-03-15", "2025-03-22", "2025-03-25"]
+    "OrderID": [1, 2, 3, 5, 6],
+    "CustomerID": ["Mowi ASA", "SalMar ASA", "Bakkafrost", "Mowi ASA", "SalMar ASA"],
+    "OrderedEggs": [50000, 40000, 50000, 60000, 70000],
+    "Product": ["Shield", "Shield", "Shield", "Gain (Premium)", "Shield"],
+    "DeliveryDate": ["2025-03-10", "2025-03-15", "2025-03-20", "2025-03-22", "2025-03-25"]
 })
 
 roe_data = pd.DataFrame({
-    "BroodstockGroup": ["A", "B", "C", "D"],
-    "ProducedEggs": [100000, 100000, 50000, 60000],
-    "Location": ["Steigen", "Hemne", "Erfjord", "Steigen"],
-    "Product": ["Shield", "Gain (Premium)", "Shield", "Gain (Premium)"],
-    "StartSaleDate": ["2025-02-15", "2025-02-15", "2025-03-01", "2025-02-20"],
-    "ExpireDate": ["2025-04-15", "2025-04-20", "2025-04-30", "2025-04-25"]
+    "BroodstockGroup": ["Early (mid-September)", "Natural (November)", "Natural (November)", "Late (December-January)", "Late (December-January)"],
+    "ProducedEggs": [100000, 100000, 50000, 60000, 42832],
+    "Location": ["Steigen", "Hemne", "Erfjord", "Steigen", "Tingvoll"],
+    "Product": ["Shield", "Gain (Premium)", "Shield", "Gain (Premium)", "Gain (Premium)"],
+    "StartSaleDate": ["2025-02-15", "2025-02-15", "2025-03-01", "2025-02-20", "2025-12-20"],
+    "ExpireDate": ["2025-04-15", "2025-04-20", "2025-04-30", "2025-04-25", "2026-02-08"]
 })
 
 # Initialize Dash app
@@ -136,7 +136,7 @@ app.layout = html.Div(style=styles['container'], children=[
                     {'label': 'Date Constraints', 'value': 'date_constraints'},
                     {'label': 'NST Priority', 'value': 'nst_priority'}
                 ],
-                value=['product_match', 'date_constraints']
+                value=['product_match', 'date_constraints']  # Default matches screenshot
             )
         ]),
         html.Div(style={'margin-bottom': '15px'}, children=[
@@ -147,7 +147,7 @@ app.layout = html.Div(style=styles['container'], children=[
                     {'label': 'Binary', 'value': 'binary'},
                     {'label': 'Partial', 'value': 'partial'}
                 ],
-                value='partial'
+                value='binary'  # Default matches screenshot
             )
         ]),
         html.Div(children=[
@@ -158,7 +158,7 @@ app.layout = html.Div(style=styles['container'], children=[
                     {'label': 'Chronological', 'value': 'chronological'},
                     {'label': 'Maximize Allocation', 'value': 'maximize'}
                 ],
-                value='chronological'
+                value='chronological'  # Default matches screenshot
             )
         ]),
         html.Button("Run Solver", id='run-solver-button', style=styles['run_button'])
@@ -206,7 +206,6 @@ app.layout = html.Div(style=styles['container'], children=[
      Input('orders-table', 'data')]
 )
 def update_inventory_summary(roe_data, orders_data):
-    # Calculate total inventory
     roe_df = pd.DataFrame(roe_data)
     orders_df = pd.DataFrame(orders_data)
     
@@ -215,20 +214,18 @@ def update_inventory_summary(roe_data, orders_data):
         total_orders = orders_df["OrderedEggs"].astype(int).sum()
         inventory_balance = total_inventory - total_orders
         
-        # Format numbers with spaces as thousand separators
         total_inventory_formatted = f"{total_inventory:,}".replace(',', ' ')
         total_orders_formatted = f"{total_orders:,}".replace(',', ' ')
         inventory_balance_formatted = f"{inventory_balance:,}".replace(',', ' ')
         if inventory_balance < 0:
-            inventory_balance_formatted = f"−{abs(inventory_balance):,}".replace(',', ' ')  # Use minus sign not hyphen
+            inventory_balance_formatted = f"−{abs(inventory_balance):,}".replace(',', ' ')
         
-        # Set balance color and status text
         if inventory_balance >= 0:
-            balance_color = "#4169E1"  # Blue for positive balance
+            balance_color = "#4169E1"
             balance_status = "Available for allocation"
             status_style = {'color': '#666'}
         else:
-            balance_color = "#D32F2F"  # Red for shortage
+            balance_color = "#D32F2F"
             balance_status = "Inventory shortage!"
             status_style = {'color': '#D32F2F', 'font-weight': 'bold'}
             
@@ -243,7 +240,6 @@ def update_inventory_summary(roe_data, orders_data):
             status_style
         )
     except:
-        # Handle errors gracefully
         return (
             "0 eggs", "No data", 
             "0 eggs", "No data", 
@@ -277,14 +273,30 @@ def add_order_row(n_clicks, existing_data):
 )
 def add_roe_row(n_clicks, existing_data):
     if n_clicks:
-        new_broodstock_group = chr(65 + len(existing_data))  # A, B, C...
+        broodstock_groups = ["Early (mid-September)", "Natural (November)", "Late (December-January)"]
+        site_locations = ["Profunda", "Hemne", "Tingvoll", "Steigen"]
+        
+        new_broodstock_group = random.choice(broodstock_groups)
+        location = random.choice(site_locations)
+        
+        current_year = datetime.date.today().year
+        if "Early" in new_broodstock_group:
+            start_sale_date = datetime.date(current_year, 9, 15) + datetime.timedelta(days=random.randint(0, 10))
+            expire_date = start_sale_date + datetime.timedelta(days=random.randint(45, 60))
+        elif "Natural" in new_broodstock_group:
+            start_sale_date = datetime.date(current_year, 11, 1) + datetime.timedelta(days=random.randint(0, 15))
+            expire_date = start_sale_date + datetime.timedelta(days=random.randint(45, 60))
+        else:  # Late
+            start_sale_date = datetime.date(current_year, 12, 20) + datetime.timedelta(days=random.randint(0, 20))
+            expire_date = start_sale_date + datetime.timedelta(days=random.randint(45, 60))
+        
         new_row = {
             'BroodstockGroup': new_broodstock_group,
-            'ProducedEggs': 50000,
-            'Location': 'New Location',
+            'ProducedEggs': random.randint(40000, 100000),
+            'Location': location,
             'Product': random.choice(product_types),
-            'StartSaleDate': (datetime.date.today() + datetime.timedelta(days=10)).strftime('%Y-%m-%d'),
-            'ExpireDate': (datetime.date.today() + datetime.timedelta(days=60)).strftime('%Y-%m-%d')
+            'StartSaleDate': start_sale_date.strftime('%Y-%m-%d'),
+            'ExpireDate': expire_date.strftime('%Y-%m-%d')
         }
         existing_data.append(new_row)
         return existing_data
@@ -318,6 +330,9 @@ def run_solver(n_clicks, constraints_value, allocation_method, order_priority, o
             orders_df = pd.DataFrame(orders_data)
             roe_df = pd.DataFrame(roe_data)
 
+            # Assign a unique GroupID to each row in roe_df
+            roe_df['GroupID'] = range(len(roe_df))
+
             orders_df["OrderedEggs"] = pd.to_numeric(orders_df["OrderedEggs"], errors='coerce')
             roe_df["ProducedEggs"] = pd.to_numeric(roe_df["ProducedEggs"], errors='coerce')
 
@@ -336,11 +351,12 @@ def run_solver(n_clicks, constraints_value, allocation_method, order_priority, o
             utilization_data = []
             allocation_df = pd.DataFrame(allocation_results) if allocation_results else pd.DataFrame()
             for _, group_row in roe_df.iterrows():
-                group_id = group_row["BroodstockGroup"]
+                group_id = group_row["GroupID"]
                 total_capacity = group_row["ProducedEggs"]
-                allocated = allocation_df[allocation_df["BroodstockGroup"] == group_id]["AllocatedEggs"].sum() if not allocation_df.empty else 0
+                allocated = allocation_df[allocation_df["GroupID"] == group_id]["AllocatedEggs"].sum() if not allocation_df.empty else 0
                 utilization_data.append({
-                    "BroodstockGroup": group_id,
+                    "BroodstockGroup": group_row["BroodstockGroup"],
+                    "Location": group_row["Location"],
                     "Total": int(total_capacity),
                     "Allocated": int(allocated),
                     "Remaining": int(total_capacity - allocated)
@@ -420,116 +436,72 @@ def update_ui_with_results(calculation_results):
         else:
             fig_utilization.update_layout(title="No Broodstock Data Available")
 
-        # Timeline Graph with improved availability period visualization
+        # Timeline Graph
         fig_timeline = go.Figure()
-
         if allocation_results and roe_data:
-            # Convert to DataFrames
             alloc_df = pd.DataFrame(allocation_results)
             roe_df = pd.DataFrame(roe_data)
-            
-            # Convert date columns to datetime
             alloc_df['DeliveryDate'] = pd.to_datetime(alloc_df['DeliveryDate'])
             roe_df['StartSaleDate'] = pd.to_datetime(roe_df['StartSaleDate'])
             roe_df['ExpireDate'] = pd.to_datetime(roe_df['ExpireDate'])
             
-            # Determine the overall date range for the plot
             all_dates = list(alloc_df['DeliveryDate'].tolist())
             all_dates.extend(roe_df['StartSaleDate'].tolist())
             all_dates.extend(roe_df['ExpireDate'].tolist())
             min_date = min(all_dates) - pd.Timedelta(days=3)
             max_date = max(all_dates) + pd.Timedelta(days=3)
             
-            # Add availability periods as shaded areas
             for i, row in roe_df.iterrows():
-                # Choose color based on product type
                 fill_color = 'rgba(144, 238, 144, 0.3)' if row['Product'] == 'Shield' else 'rgba(135, 206, 250, 0.3)'
                 line_color = 'rgba(0, 128, 0, 0.5)' if row['Product'] == 'Shield' else 'rgba(0, 0, 255, 0.5)'
-                
-                # Create a polygon shape for the availability period
                 fig_timeline.add_shape(
                     type="rect",
-                    x0=i - 0.4,  # Position based on index with some offset
-                    x1=i + 0.4,
-                    y0=row['StartSaleDate'],
-                    y1=row['ExpireDate'],
+                    y0=i - 0.4, y1=i + 0.4,
+                    x0=row['StartSaleDate'], x1=row['ExpireDate'],
                     fillcolor=fill_color,
                     line=dict(color=line_color, width=1),
                     layer="below"
                 )
-                
-                # Add annotation for the broodstock group
                 fig_timeline.add_annotation(
-                    x=i,
-                    y=min_date,
+                    y=i,
+                    x=min_date - pd.Timedelta(days=2),
                     text=f"{row['BroodstockGroup']}",
                     showarrow=False,
                     font=dict(size=14, color="black"),
-                    xanchor="center",
-                    yanchor="bottom"
+                    yanchor="middle",
+                    xanchor="right"
                 )
-                
-                # Add annotation for location
                 fig_timeline.add_annotation(
-                    x=i,
-                    y=min_date - pd.Timedelta(days=2),
+                    y=i,
+                    x=min_date - pd.Timedelta(days=5),
                     text=f"{row['Location']}",
                     showarrow=False,
                     font=dict(size=10),
-                    xanchor="center",
-                    yanchor="top"
+                    yanchor="middle",
+                    xanchor="right"
                 )
             
-            # Add allocation points colored by product type
             for product in alloc_df['Product'].unique():
                 product_df = alloc_df[alloc_df['Product'] == product]
-                
-                # Map broodstock groups to numerical positions
-                group_to_position = {group: i for i, group in enumerate(roe_df['BroodstockGroup'])}
-                
-                color = '#4CAF50' if product == 'Shield' else '#2196F3'  # Green for Shield, Blue for Gain
-                
+                group_id_to_position = {row['GroupID']: i for i, row in roe_df.iterrows()}
+                color = '#4CAF50' if product == 'Shield' else '#2196F3'
                 fig_timeline.add_trace(go.Scatter(
-                    x=[group_to_position.get(group, 0) for group in product_df['BroodstockGroup']],
-                    y=product_df['DeliveryDate'],
+                    y=[group_id_to_position.get(row['GroupID'], 0) for _, row in product_df.iterrows()],
+                    x=product_df['DeliveryDate'],
                     mode="markers",
-                    marker=dict(
-                        size=product_df['AllocatedEggs'] / 5000,  # Scale marker size
-                        color=color,
-                        line=dict(width=1, color="black"),
-                        opacity=0.8,
-                        symbol='circle'
-                    ),
+                    marker=dict(size=product_df['AllocatedEggs'] / 5000, color=color, line=dict(width=1, color="black"), opacity=0.8),
                     name=f"{product} Orders",
-                    text=[f"Order {row['OrderID']}: {row['AllocatedEggs']:,} eggs<br>Customer: {row['CustomerID']}<br>Product: {row['Product']}<br>Delivery: {row['DeliveryDate'].strftime('%Y-%m-%d')}" 
-                         for _, row in product_df.iterrows()],
+                    text=[f"Order {row['OrderID']}: {row['AllocatedEggs']:,} eggs<br>Customer: {row['CustomerID']}" for _, row in product_df.iterrows()],
                     hoverinfo="text"
                 ))
             
-            # Update layout for timeline
             fig_timeline.update_layout(
                 title="Roe Allocation Timeline",
-                xaxis=dict(
-                    title="Broodstock Group",
-                    tickmode='array',
-                    tickvals=list(range(len(roe_df))),
-                    ticktext=[f"{row['BroodstockGroup']}" for _, row in roe_df.iterrows()],
-                    showgrid=False
-                ),
-                yaxis=dict(
-                    title="Date",
-                    type="date"
-                ),
+                xaxis=dict(title="Date", type="date"),
+                yaxis=dict(title="Broodstock Group", tickmode='array', tickvals=list(range(len(roe_df))), ticktext=[f"{row['BroodstockGroup']}" for _, row in roe_df.iterrows()], showgrid=False),
                 height=500,
                 template="plotly_white",
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="center",
-                    x=0.5
-                ),
-                plot_bgcolor='rgba(250,250,250,0.9)'
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5)
             )
         else:
             fig_timeline.update_layout(title="No Allocation Data Available")
@@ -541,16 +513,8 @@ def update_ui_with_results(calculation_results):
         return [], [], html.Div(f"Error: {str(e)}", style={'color': 'red'}), go.Figure(layout={'title': f'Error: {str(e)}'}), go.Figure(layout={'title': f'Error: {str(e)}'})
 
 if __name__ == '__main__':
-    # Get port from environment variable (Render.com sets this)
-    # Default to 10000 if not set (for local development)
     port = int(os.environ.get('PORT', 10000))
-    
-    # In production (like on Render.com), we want to listen on 0.0.0.0
-    # This allows the app to be accessible from outside the container
     host = '0.0.0.0'
-    
-    # Set debug to False in production
     debug = os.environ.get('DEBUG', 'True').lower() == 'true'
-    
     print(f"Starting server on {host}:{port} with debug={debug}")
     app.run_server(host=host, port=port, debug=debug)
