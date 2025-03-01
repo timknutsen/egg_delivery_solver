@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import random
 import datetime
 import time
+import os
 from optimization import binary_allocation, partial_allocation
 
 # Sample data (replace with your actual data loading)
@@ -38,7 +39,8 @@ styles = {
     'button': {'background-color': '#4CAF50', 'color': 'white', 'padding': '10px 20px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'margin-top': '10px'},
     'run_button': {'background-color': '#008CBA', 'color': 'white', 'padding': '12px 25px', 'border': 'none', 'border-radius': '4px', 'cursor': 'pointer', 'margin-top': '15px', 'font-size': '16px'},
     'status_bar': {'padding': '10px', 'margin-top': '15px', 'border-radius': '4px', 'font-weight': 'bold', 'text-align': 'center', 'background-color': '#f0f0f0'},
-    'graph': {'height': '400px'}
+    'graph': {'height': '400px'},
+    'tabs': {'margin-top': '10px'}
 }
 
 # App layout
@@ -47,6 +49,39 @@ app.layout = html.Div(style=styles['container'], children=[
 
     # Status Bar
     html.Div(id='status-bar', style=styles['status_bar'], children="Ready"),
+    
+    # Inventory Analytics Dashboard
+    html.Div(style={**styles['section'], 'background-color': 'white'}, children=[
+        html.Div(style={'display': 'flex', 'align-items': 'center', 'margin-bottom': '15px'}, children=[
+            html.Div(style={'background-color': '#7B2CBF', 'width': '40px', 'height': '40px', 'border-radius': '50%', 'margin-right': '10px', 'display': 'flex', 'align-items': 'center', 'justify-content': 'center'}, children=[
+                html.Div(style={'border': '6px solid white', 'border-left-color': 'transparent', 'width': '20px', 'height': '20px', 'border-radius': '50%'})
+            ]),
+            html.H2("Inventory Analytics", style={'margin': '0', 'font-weight': '500'})
+        ]),
+        
+        html.Div(style={'display': 'flex', 'justify-content': 'space-between', 'margin-top': '15px'}, children=[
+            # Total Inventory
+            html.Div(style={'flex': '1', 'padding': '20px', 'background-color': '#f9f9f9', 'border-radius': '8px', 'margin-right': '10px'}, children=[
+                html.H3("Total Inventory", style={'margin-top': '0', 'font-weight': '500', 'color': '#333'}),
+                html.Div(id="total-inventory-value", style={'font-size': '36px', 'font-weight': 'bold', 'color': '#4169E1', 'margin-bottom': '10px'}),
+                html.Div(id="total-inventory-subtitle", style={'color': '#666'})
+            ]),
+            
+            # Total Orders
+            html.Div(style={'flex': '1', 'padding': '20px', 'background-color': '#f9f9f9', 'border-radius': '8px', 'margin-right': '10px'}, children=[
+                html.H3("Total Orders", style={'margin-top': '0', 'font-weight': '500', 'color': '#333'}),
+                html.Div(id="total-orders-value", style={'font-size': '36px', 'font-weight': 'bold', 'color': '#4CAF50', 'margin-bottom': '10px'}),
+                html.Div(id="total-orders-subtitle", style={'color': '#666'})
+            ]),
+            
+            # Inventory Balance
+            html.Div(style={'flex': '1', 'padding': '20px', 'background-color': '#f9f9f9', 'border-radius': '8px'}, children=[
+                html.H3("Inventory Balance", style={'margin-top': '0', 'font-weight': '500', 'color': '#333'}),
+                html.Div(id="inventory-balance-value", style={'font-size': '36px', 'font-weight': 'bold', 'margin-bottom': '10px'}),
+                html.Div(id="inventory-balance-subtitle", style={'color': '#666'})
+            ])
+        ])
+    ]),
 
     # Customer Orders
     html.Div(style=styles['section'], children=[
@@ -140,10 +175,17 @@ app.layout = html.Div(style=styles['container'], children=[
         html.Div(id='unfulfilled-orders', style={'margin-top': '15px'})
     ]),
 
-    # Broodstock Utilization Graph
+    # Visualization with Tabs
     html.Div(style=styles['section'], children=[
-        html.H3("Broodstock Utilization"),
-        dcc.Graph(id='utilization-graph', style=styles['graph'])
+        html.H3("Visualization"),
+        dcc.Tabs(style=styles['tabs'], children=[
+            dcc.Tab(label="Broodstock Utilization", children=[
+                dcc.Graph(id='utilization-graph', style=styles['graph'])
+            ]),
+            dcc.Tab(label="Timeline View", children=[
+                dcc.Graph(id='timeline-graph', style=styles['graph'])
+            ])
+        ])
     ]),
 
     # Hidden div to store the calculation results
@@ -151,6 +193,64 @@ app.layout = html.Div(style=styles['container'], children=[
 ])
 
 # --- Callbacks ---
+@app.callback(
+    [Output('total-inventory-value', 'children'),
+     Output('total-inventory-subtitle', 'children'),
+     Output('total-orders-value', 'children'),
+     Output('total-orders-subtitle', 'children'),
+     Output('inventory-balance-value', 'children'),
+     Output('inventory-balance-value', 'style'),
+     Output('inventory-balance-subtitle', 'children'),
+     Output('inventory-balance-subtitle', 'style')],
+    [Input('roe-table', 'data'),
+     Input('orders-table', 'data')]
+)
+def update_inventory_summary(roe_data, orders_data):
+    # Calculate total inventory
+    roe_df = pd.DataFrame(roe_data)
+    orders_df = pd.DataFrame(orders_data)
+    
+    try:
+        total_inventory = roe_df["ProducedEggs"].astype(int).sum()
+        total_orders = orders_df["OrderedEggs"].astype(int).sum()
+        inventory_balance = total_inventory - total_orders
+        
+        # Format numbers with spaces as thousand separators
+        total_inventory_formatted = f"{total_inventory:,}".replace(',', ' ')
+        total_orders_formatted = f"{total_orders:,}".replace(',', ' ')
+        inventory_balance_formatted = f"{inventory_balance:,}".replace(',', ' ')
+        if inventory_balance < 0:
+            inventory_balance_formatted = f"−{abs(inventory_balance):,}".replace(',', ' ')  # Use minus sign not hyphen
+        
+        # Set balance color and status text
+        if inventory_balance >= 0:
+            balance_color = "#4169E1"  # Blue for positive balance
+            balance_status = "Available for allocation"
+            status_style = {'color': '#666'}
+        else:
+            balance_color = "#D32F2F"  # Red for shortage
+            balance_status = "Inventory shortage!"
+            status_style = {'color': '#D32F2F', 'font-weight': 'bold'}
+            
+        return (
+            html.Span([total_inventory_formatted, html.Span(" eggs", style={'color': '#666', 'font-size': '24px', 'font-weight': 'normal'})]),
+            "Across all locations",
+            html.Span([total_orders_formatted, html.Span(" eggs", style={'color': '#666', 'font-size': '24px', 'font-weight': 'normal'})]),
+            "Pending delivery",
+            html.Span([inventory_balance_formatted, html.Span(" eggs", style={'color': '#666', 'font-size': '24px', 'font-weight': 'normal'})]),
+            {'font-size': '36px', 'font-weight': 'bold', 'color': balance_color, 'margin-bottom': '10px'},
+            balance_status,
+            status_style
+        )
+    except:
+        # Handle errors gracefully
+        return (
+            "0 eggs", "No data", 
+            "0 eggs", "No data", 
+            "0 eggs", {'color': '#666', 'font-size': '36px', 'font-weight': 'bold', 'margin-bottom': '10px'},
+            "No data", {'color': '#666'}
+        )
+
 @app.callback(
     Output('orders-table', 'data'),
     Input('add-order-button', 'n_clicks'),
@@ -253,7 +353,8 @@ def run_solver(n_clicks, constraints_value, allocation_method, order_priority, o
                 {
                     "allocation_results": allocation_results,
                     "unfulfilled_orders": unfulfilled_orders,
-                    "utilization_data": utilization_data
+                    "utilization_data": utilization_data,
+                    "roe_data": roe_df.to_dict('records')  # Include roe data for timeline visualization
                 }
             )
         except Exception as e:
@@ -270,19 +371,21 @@ def run_solver(n_clicks, constraints_value, allocation_method, order_priority, o
         Output('allocation-table', 'columns'),
         Output('allocation-table', 'data'),
         Output('unfulfilled-orders', 'children'),
-        Output('utilization-graph', 'figure')
+        Output('utilization-graph', 'figure'),
+        Output('timeline-graph', 'figure')
     ],
     Input('calculation-results', 'data'),
     prevent_initial_call=True
 )
 def update_ui_with_results(calculation_results):
     if not calculation_results:
-        return [], [], "No results yet", go.Figure(layout={'title': 'No Data'})
+        return [], [], "No results yet", go.Figure(layout={'title': 'No Data'}), go.Figure(layout={'title': 'No Data'})
 
     try:
         allocation_results = calculation_results.get('allocation_results', [])
         unfulfilled_orders = calculation_results.get('unfulfilled_orders', [])
         utilization_data = calculation_results.get('utilization_data', [])
+        roe_data = calculation_results.get('roe_data', [])
 
         # Allocation Table
         allocation_columns = [
@@ -299,15 +402,15 @@ def update_ui_with_results(calculation_results):
             unfulfilled_div = html.Div("All orders fulfilled!", style={'color': 'green'})
 
         # Broodstock Utilization Graph
-        fig = go.Figure()
+        fig_utilization = go.Figure()
         if utilization_data:
             df = pd.DataFrame(utilization_data)
-            fig.add_trace(go.Bar(x=df["BroodstockGroup"], y=df["Allocated"], name="Allocated", marker_color="#4CAF50"))
-            fig.add_trace(go.Bar(x=df["BroodstockGroup"], y=df["Remaining"], name="Remaining", marker_color="#ccc"))
-            fig.update_layout(barmode='stack', title="Broodstock Utilization", xaxis_title="Broodstock Group", yaxis_title="Eggs")
+            fig_utilization.add_trace(go.Bar(x=df["BroodstockGroup"], y=df["Allocated"], name="Allocated", marker_color="#4CAF50"))
+            fig_utilization.add_trace(go.Bar(x=df["BroodstockGroup"], y=df["Remaining"], name="Remaining", marker_color="#ccc"))
+            fig_utilization.update_layout(barmode='stack', title="Broodstock Utilization", xaxis_title="Broodstock Group", yaxis_title="Eggs")
             for i, row in df.iterrows():
                 utilization_pct = (row["Allocated"] / row["Total"]) * 100 if row["Total"] > 0 else 0
-                fig.add_annotation(
+                fig_utilization.add_annotation(
                     x=row["BroodstockGroup"],
                     y=row["Total"] / 2,
                     text=f"{utilization_pct:.1f}%",
@@ -315,17 +418,129 @@ def update_ui_with_results(calculation_results):
                     font=dict(color="white", size=12)
                 )
         else:
-            fig.update_layout(title="No Broodstock Data Available")
+            fig_utilization.update_layout(title="No Broodstock Data Available")
 
-        return allocation_columns, allocation_data, unfulfilled_div, fig
+        # Timeline Graph with improved availability period visualization
+        fig_timeline = go.Figure()
+
+        if allocation_results and roe_data:
+            # Convert to DataFrames
+            alloc_df = pd.DataFrame(allocation_results)
+            roe_df = pd.DataFrame(roe_data)
+            
+            # Convert date columns to datetime
+            alloc_df['DeliveryDate'] = pd.to_datetime(alloc_df['DeliveryDate'])
+            roe_df['StartSaleDate'] = pd.to_datetime(roe_df['StartSaleDate'])
+            roe_df['ExpireDate'] = pd.to_datetime(roe_df['ExpireDate'])
+            
+            # Determine the overall date range for the plot
+            all_dates = list(alloc_df['DeliveryDate'].tolist())
+            all_dates.extend(roe_df['StartSaleDate'].tolist())
+            all_dates.extend(roe_df['ExpireDate'].tolist())
+            min_date = min(all_dates) - pd.Timedelta(days=3)
+            max_date = max(all_dates) + pd.Timedelta(days=3)
+            
+            # Add availability periods as shaded areas
+            for i, row in roe_df.iterrows():
+                # Choose color based on product type
+                fill_color = 'rgba(144, 238, 144, 0.3)' if row['Product'] == 'Shield' else 'rgba(135, 206, 250, 0.3)'
+                line_color = 'rgba(0, 128, 0, 0.5)' if row['Product'] == 'Shield' else 'rgba(0, 0, 255, 0.5)'
+                
+                # Create a polygon shape for the availability period
+                fig_timeline.add_shape(
+                    type="rect",
+                    x0=i - 0.4,  # Position based on index with some offset
+                    x1=i + 0.4,
+                    y0=row['StartSaleDate'],
+                    y1=row['ExpireDate'],
+                    fillcolor=fill_color,
+                    line=dict(color=line_color, width=1),
+                    layer="below"
+                )
+                
+                # Add annotation for the broodstock group
+                fig_timeline.add_annotation(
+                    x=i,
+                    y=min_date,
+                    text=f"{row['BroodstockGroup']}",
+                    showarrow=False,
+                    font=dict(size=14, color="black"),
+                    xanchor="center",
+                    yanchor="bottom"
+                )
+                
+                # Add annotation for location
+                fig_timeline.add_annotation(
+                    x=i,
+                    y=min_date - pd.Timedelta(days=2),
+                    text=f"{row['Location']}",
+                    showarrow=False,
+                    font=dict(size=10),
+                    xanchor="center",
+                    yanchor="top"
+                )
+            
+            # Add allocation points colored by product type
+            for product in alloc_df['Product'].unique():
+                product_df = alloc_df[alloc_df['Product'] == product]
+                
+                # Map broodstock groups to numerical positions
+                group_to_position = {group: i for i, group in enumerate(roe_df['BroodstockGroup'])}
+                
+                color = '#4CAF50' if product == 'Shield' else '#2196F3'  # Green for Shield, Blue for Gain
+                
+                fig_timeline.add_trace(go.Scatter(
+                    x=[group_to_position.get(group, 0) for group in product_df['BroodstockGroup']],
+                    y=product_df['DeliveryDate'],
+                    mode="markers",
+                    marker=dict(
+                        size=product_df['AllocatedEggs'] / 5000,  # Scale marker size
+                        color=color,
+                        line=dict(width=1, color="black"),
+                        opacity=0.8,
+                        symbol='circle'
+                    ),
+                    name=f"{product} Orders",
+                    text=[f"Order {row['OrderID']}: {row['AllocatedEggs']:,} eggs<br>Customer: {row['CustomerID']}<br>Product: {row['Product']}<br>Delivery: {row['DeliveryDate'].strftime('%Y-%m-%d')}" 
+                         for _, row in product_df.iterrows()],
+                    hoverinfo="text"
+                ))
+            
+            # Update layout for timeline
+            fig_timeline.update_layout(
+                title="Roe Allocation Timeline",
+                xaxis=dict(
+                    title="Broodstock Group",
+                    tickmode='array',
+                    tickvals=list(range(len(roe_df))),
+                    ticktext=[f"{row['BroodstockGroup']}" for _, row in roe_df.iterrows()],
+                    showgrid=False
+                ),
+                yaxis=dict(
+                    title="Date",
+                    type="date"
+                ),
+                height=500,
+                template="plotly_white",
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="center",
+                    x=0.5
+                ),
+                plot_bgcolor='rgba(250,250,250,0.9)'
+            )
+        else:
+            fig_timeline.update_layout(title="No Allocation Data Available")
+
+        return allocation_columns, allocation_data, unfulfilled_div, fig_utilization, fig_timeline
 
     except Exception as e:
         print(f"Error updating UI: {e}")
-        return [], [], html.Div(f"Error: {str(e)}", style={'color': 'red'}), go.Figure(layout={'title': f'Error: {str(e)}'})
+        return [], [], html.Div(f"Error: {str(e)}", style={'color': 'red'}), go.Figure(layout={'title': f'Error: {str(e)}'}), go.Figure(layout={'title': f'Error: {str(e)}'})
 
 if __name__ == '__main__':
-    import os
-    
     # Get port from environment variable (Render.com sets this)
     # Default to 10000 if not set (for local development)
     port = int(os.environ.get('PORT', 10000))
