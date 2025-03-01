@@ -421,17 +421,56 @@ def update_ui_with_results(calculation_results):
         fig_utilization = go.Figure()
         if utilization_data:
             df = pd.DataFrame(utilization_data)
-            fig_utilization.add_trace(go.Bar(x=df["BroodstockGroup"], y=df["Allocated"], name="Allocated", marker_color="#4CAF50"))
-            fig_utilization.add_trace(go.Bar(x=df["BroodstockGroup"], y=df["Remaining"], name="Remaining", marker_color="#ccc"))
-            fig_utilization.update_layout(barmode='stack', title="Broodstock Utilization", xaxis_title="Broodstock Group", yaxis_title="Eggs")
+
+            # Add stacked bars for Allocated and Remaining
+            fig_utilization.add_trace(go.Bar(
+                x=df["BroodstockGroup"],
+                y=df["Allocated"],
+                name="Allocated",
+                marker_color="#4CAF50",
+                text=[f"{row['Allocated']:,}" for _, row in df.iterrows()],  # Display raw numbers on the bar
+                textposition="inside",
+                textfont=dict(color="white", size=12),
+                hovertemplate="<b>%{x}</b><br>Allocated: %{y:,} eggs<br>Location: " + df["Location"] + "<br>Utilization: %{customdata:.1f}%",
+                customdata=(df["Allocated"] / df["Total"] * 100).fillna(0)
+            ))
+            fig_utilization.add_trace(go.Bar(
+                x=df["BroodstockGroup"],
+                y=df["Remaining"],
+                name="Remaining",
+                marker_color="#ccc",
+                text=[f"{row['Remaining']:,}" for _, row in df.iterrows()],
+                textposition="inside",
+                textfont=dict(color="black", size=12),
+                hovertemplate="<b>%{x}</b><br>Remaining: %{y:,} eggs<br>Location: " + df["Location"],
+            ))
+
+            # Update layout for better design
+            fig_utilization.update_layout(
+                barmode='stack',
+                title="Broodstock Utilization by Group (% Allocated)",
+                xaxis_title="Broodstock Group",
+                yaxis_title="Number of Eggs",
+                yaxis=dict(showgrid=True, gridcolor="lightgray"),  # Add light grid for readability
+                hovermode="closest",  # Ensure hover info is clear
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),  # Move legend to top
+                template="plotly_white",  # Clean template
+                margin=dict(t=100),  # Add space for title and legend
+            )
+
+            # Add utilization percentage annotations above the bars
             for i, row in df.iterrows():
                 utilization_pct = (row["Allocated"] / row["Total"]) * 100 if row["Total"] > 0 else 0
                 fig_utilization.add_annotation(
                     x=row["BroodstockGroup"],
-                    y=row["Total"] / 2,
+                    y=row["Total"],  # Place annotation at the top of the bar
                     text=f"{utilization_pct:.1f}%",
                     showarrow=False,
-                    font=dict(color="white", size=12)
+                    font=dict(color="black", size=12),
+                    yshift=10,  # Shift the annotation slightly above the bar
+                    bgcolor="white",  # Add a white background for better contrast
+                    bordercolor="black",
+                    borderwidth=1,
                 )
         else:
             fig_utilization.update_layout(title="No Broodstock Data Available")
