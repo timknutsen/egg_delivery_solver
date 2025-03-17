@@ -1,12 +1,13 @@
 # %%
 import dash
 from dash import dcc, html, dash_table, Input, Output, State
+import dash_bootstrap_components as dbc
 import pandas as pd
 import plotly.express as px
 import pulp as pl
 
-# Initialize the Dash app
-app = dash.Dash(__name__, suppress_callback_exceptions=True)
+# Initialize the Dash app with a Bootstrap theme
+app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.FLATLY])
 
 # Default data for orders
 default_orders = pd.DataFrame({
@@ -31,7 +32,7 @@ default_fish_groups = pd.DataFrame({
     'Organic': [True, False, True, False]
 })
 
-# Solver function
+# Solver function with added temporal constraint
 def solve_egg_allocation(orders, fish_groups):
     # Convert dates to datetime
     orders['DeliveryDate'] = pd.to_datetime(orders['DeliveryDate'])
@@ -82,12 +83,10 @@ def solve_egg_allocation(orders, fish_groups):
     # Capacity constraints
     for j in all_fish_groups.index:
         if all_fish_groups.loc[j, 'Site'] != 'Dummy':
-            # Gain eggs capacity
             prob += pl.lpSum(
                 x[i, j] * active_orders.loc[i, 'Volume'] 
                 for i in active_orders.index if active_orders.loc[i, 'Product'] == 'Gain'
             ) <= all_fish_groups.loc[j, 'Gain-eggs']
-            # Shield eggs capacity
             prob += pl.lpSum(
                 x[i, j] * active_orders.loc[i, 'Volume'] 
                 for i in active_orders.index if active_orders.loc[i, 'Product'] == 'Shield'
@@ -120,6 +119,15 @@ def solve_egg_allocation(orders, fish_groups):
                               if all_fish_groups.loc[j, 'Site'] != pref_site and all_fish_groups.loc[j, 'Site'] != 'Dummy']
             if non_pref_sites:
                 prob += pref_site_penalties[i] >= pl.lpSum(x[i, j] for j in non_pref_sites)
+    
+    # Temporal constraint: Stripping stop date must be before delivery date for real fish groups
+    for i in active_orders.index:
+        delivery_date = active_orders.loc[i, 'DeliveryDate']
+        for j in all_fish_groups.index:
+            if all_fish_groups.loc[j, 'Site'] != 'Dummy':
+                stripping_stop_date = all_fish_groups.loc[j, 'StrippingStopDate']
+                if stripping_stop_date > delivery_date:
+                    prob += x[i, j] == 0
     
     # Solve the problem
     prob.solve()
@@ -169,73 +177,101 @@ def solve_egg_allocation(orders, fish_groups):
         'remaining_capacity': remaining
     }
 
+# Updated buffer graph function with enhanced styling
 def create_buffer_graph(remaining):
-    # Ensure the date is in datetime format
     remaining['StrippingStopDate'] = pd.to_datetime(remaining['StrippingStopDate'])
     
-    # Define time range: from earliest stripping stop date to 4 weeks after the latest date
     start_date = remaining['StrippingStopDate'].min()
     end_date = remaining['StrippingStopDate'].max() + pd.Timedelta(weeks=4)
     weekly_dates = pd.date_range(start=start_date, end=end_date, freq='W-MON')
     
-    # Prepare inventory data per facility for each week
     buffer_data = []
     facilities = remaining['Site'].unique()
     for week in weekly_dates:
         for facility in facilities:
             facility_groups = remaining[remaining['Site'] == facility]
-            # Sum remaining capacity for groups available by this week
             total_gain = facility_groups[facility_groups['StrippingStopDate'] <= week]['Gain-eggs-remaining'].sum()
             total_shield = facility_groups[facility_groups['StrippingStopDate'] <= week]['Shield-eggs-remaining'].sum()
             total_remaining = total_gain + total_shield
             buffer_data.append({
                 'Week': week,
                 'Facility': facility,
-                'TotalRemaining': total_remaining
+                'TotalRemaining': total_remaining / 1e6  # Convert to millions for readability
             })
     buffer_df = pd.DataFrame(buffer_data)
     
-    # Create line chart
     fig = px.line(buffer_df, x='Week', y='TotalRemaining', color='Facility',
                   title='Weekly Inventory Buffer per Facility', markers=True)
-    fig.update_layout(xaxis_title="Week", yaxis_title="Available Roe")
+    fig.update_layout(
+        xaxis_title="Week",
+        yaxis_title="Available Roe (Millions)",
+        title={'x': 0.5, 'xanchor': 'center', 'font': {'size': 20}},
+        template="plotly_white",
+        font=dict(family="Arial, sans-serif", size=14),
+        legend_title_text="Facility",
+        margin=dict(l=50, r=50, t=80, b=50),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    fig.update_traces(line=dict(width=3), marker=dict(size=10))
     return fig
 
-# App layout
-app.layout = html.Div([
-    html.H1("Fish Egg Allocation Solver", style={'textAlign': 'center', 'margin': '20px'}),
+# Table styling function for consistency
+def get_table_style():
+    return {
+        'style_table': {'overflowX': 'auto', 'borderRadius': '10px', 'overflow': 'hidden'},
+        'style_cell': {
+            'textAlign': 'left',
+            'padding': '10px',
+            'fontFamily': 'Arial, sans-serif',
+            'fontSize': '14px',
+            'border': '1px solid #e0e0e0',
+        },
+        'style_header': {
+            'backgroundColor': '#007bff',
+            'color': 'white',
+            'fontWeight': 'bold',
+            'textAlign': 'center',
+            'padding': '10px',
+            'borderBottom': '2px solid #0056b3',
+        },
+        'style_data_conditional': [
+            {'if': {'row_index': 'odd'}, 'backgroundColor': '#f9f9f9'},
+            {'if': {'state': 'selected'}, 'backgroundColor': '#cce5ff', 'border': '1px solid #007bff'},
+        ]
+    }
+
+# App layout with Bootstrap and enhanced styling
+app.layout = dbc.Container([
+    html.H1("Fish Egg Allocation Solver", className="text-center my-4 py-3 bg-primary text-white rounded"),
     
-    html.Div([
-        html.Div([
-            html.H3("Orders"),
+    dbc.Row([
+        dbc.Col([
+            html.H3("Orders", className="mt-4"),
             dash_table.DataTable(
                 id='order-table',
                 data=default_orders.to_dict('records'),
                 columns=[{'name': col, 'id': col, 'editable': True} for col in default_orders.columns],
-                style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'left', 'padding': '5px'},
-                style_header={'fontWeight': 'bold', 'backgroundColor': 'lightblue'},
                 editable=True,
                 row_deletable=True,
+                **get_table_style()
             ),
-            html.Button('Add Order Row', id='add-order-row-button', n_clicks=0, style={'margin': '10px'}),
+            dbc.Button('Add Order Row', id='add-order-row-button', n_clicks=0, color="primary", className="mt-2"),
             
-            html.H3("Fish Groups"),
+            html.H3("Fish Groups", className="mt-4"),
             dash_table.DataTable(
                 id='fish-group-table',
                 data=default_fish_groups.to_dict('records'),
                 columns=[{'name': col, 'id': col, 'editable': True} for col in default_fish_groups.columns],
-                style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'left', 'padding': '5px'},
-                style_header={'fontWeight': 'bold', 'backgroundColor': 'lightblue'},
                 editable=True,
                 row_deletable=True,
+                **get_table_style()
             ),
-            html.Button('Add Fish Group Row', id='add-fish-group-row-button', n_clicks=0, style={'margin': '10px'}),
-        ], style={'margin': '20px'}),
+            dbc.Button('Add Fish Group Row', id='add-fish-group-row-button', n_clicks=0, color="primary", className="mt-2"),
+        ], width=6),
         
-        html.Div([
-            html.H3("Problem Description"),
+        dbc.Col([
+            html.H3("Problem Description", className="mt-4"),
             dcc.Markdown("""
                 ### Fish Egg Allocation Problem
                 
@@ -244,40 +280,33 @@ app.layout = html.Div([
                 - Automate the allocation to reduce manual work.
                 - Manage waste by optimizing the splitting of fish groups into batches.
                 - Visualize inventory buffers with a weekly graph per production facility.
-            """),
-            html.Button(
-                'Solve Allocation Problem', 
-                id='solve-button', 
-                n_clicks=0, 
-                style={'backgroundColor': '#4CAF50', 'color': 'white', 'padding': '10px 20px', 'fontSize': '16px', 'margin': '20px 0'}
-            ),
-        ], style={'margin': '20px', 'padding': '20px', 'backgroundColor': '#f9f9f9', 'borderRadius': '10px'})
-    ], style={'display': 'flex', 'flexWrap': 'wrap'}),
+            """, className="p-3 bg-light rounded"),
+            dbc.Button('Solve Allocation Problem', id='solve-button', n_clicks=0, color="success", size="lg", className="mt-4"),
+        ], width=6, className="p-4"),
+    ], className="my-4"),
     
-    html.Div(id='results-section', style={'margin': '20px', 'display': 'none'}, children=[
-        html.H2("Solver Results"),
-        html.Div([
-            html.H3("Order Assignments"),
-            dash_table.DataTable(
-                id='results-table',
-                style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'left', 'padding': '5px'},
-                style_header={'fontWeight': 'bold', 'backgroundColor': 'lightblue'},
-            ),
-            html.H3("Remaining Capacity"),
-            dash_table.DataTable(
-                id='capacity-table',
-                style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'left', 'padding': '5px'},
-                style_header={'fontWeight': 'bold', 'backgroundColor': 'lightblue'},
-            ),
-        ]),
-        html.Div([
-            html.H3("Weekly Inventory Buffer"),
-            dcc.Graph(id='buffer-visualization'),
-        ], style={'marginTop': '30px'})
-    ])
-])
+    dcc.Loading(
+        id="loading",
+        type="circle",
+        children=html.Div(id='results-section', className="mt-4", style={'display': 'none'}, children=[
+            html.H2("Solver Results", className="text-center mb-4"),
+            dbc.Row([
+                dbc.Col([
+                    html.H3("Order Assignments", className="mt-4"),
+                    dash_table.DataTable(id='results-table', **get_table_style()),
+                    html.H3("Remaining Capacity", className="mt-4"),
+                    dash_table.DataTable(id='capacity-table', **get_table_style()),
+                ], width=12),
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    html.H3("Weekly Inventory Buffer", className="mt-4"),
+                    dcc.Graph(id='buffer-visualization'),
+                ], width=12),
+            ]),
+        ])
+    )
+], fluid=True)
 
 # Callbacks for adding rows to tables
 @app.callback(
@@ -309,7 +338,8 @@ def add_fish_group_row(n_clicks, rows):
      Output('results-table', 'columns'),
      Output('capacity-table', 'data'),
      Output('capacity-table', 'columns'),
-     Output('buffer-visualization', 'figure')],
+     Output('buffer-visualization', 'figure'),
+     Output('solve-button', 'children')],
     Input('solve-button', 'n_clicks'),
     [State('order-table', 'data'),
      State('fish-group-table', 'data')],
@@ -351,18 +381,22 @@ def update_results(n_clicks, order_data, fish_group_data):
         # Create weekly inventory buffer visualization
         buffer_fig = create_buffer_graph(capacity_df)
         
+        # Update button text with solver status
+        status = solution['status']
+        button_text = f"Solve Allocation Problem (Status: {status})"
+        
         return (
             {'margin': '20px', 'display': 'block'},
             results_df.to_dict('records'),
             results_columns,
             capacity_df.to_dict('records'),
             capacity_columns,
-            buffer_fig
+            buffer_fig,
+            button_text
         )
     
-    return ({'display': 'none'}, [], [], [], [], {})
+    return ({'display': 'none'}, [], [], [], [], {}, "Solve Allocation Problem")
 
 # Run the app
 if __name__ == '__main__':
     app.run_server(debug=True)
-
