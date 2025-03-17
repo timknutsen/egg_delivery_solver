@@ -32,7 +32,7 @@ default_fish_groups = pd.DataFrame({
     'Organic': [True, False, True, False]
 })
 
-# Solver function with added temporal constraint
+# Solver function with corrected temporal constraint
 def solve_egg_allocation(orders, fish_groups):
     # Convert dates to datetime
     orders['DeliveryDate'] = pd.to_datetime(orders['DeliveryDate'])
@@ -120,13 +120,14 @@ def solve_egg_allocation(orders, fish_groups):
             if non_pref_sites:
                 prob += pref_site_penalties[i] >= pl.lpSum(x[i, j] for j in non_pref_sites)
     
-    # Temporal constraint: Stripping stop date must be before delivery date for real fish groups
+    # Corrected temporal constraint: Delivery date must be within stripping window
     for i in active_orders.index:
         delivery_date = active_orders.loc[i, 'DeliveryDate']
         for j in all_fish_groups.index:
             if all_fish_groups.loc[j, 'Site'] != 'Dummy':
+                stripping_start_date = all_fish_groups.loc[j, 'StrippingStartDate']
                 stripping_stop_date = all_fish_groups.loc[j, 'StrippingStopDate']
-                if stripping_stop_date > delivery_date:
+                if delivery_date < stripping_start_date or delivery_date > stripping_stop_date:
                     prob += x[i, j] == 0
     
     # Solve the problem
@@ -177,27 +178,51 @@ def solve_egg_allocation(orders, fish_groups):
         'remaining_capacity': remaining
     }
 
-# Updated buffer graph function with enhanced styling
-def create_buffer_graph(remaining):
+# Updated buffer graph function to reflect assigned orders
+def create_buffer_graph(remaining, results):
+    remaining['StrippingStartDate'] = pd.to_datetime(remaining['StrippingStartDate'])
     remaining['StrippingStopDate'] = pd.to_datetime(remaining['StrippingStopDate'])
     
-    start_date = remaining['StrippingStopDate'].min()
+    # Initialize remaining capacity with original values
+    buffer_data = []
+    facilities = remaining['Site'].unique()
+    start_date = remaining['StrippingStartDate'].min()
     end_date = remaining['StrippingStopDate'].max() + pd.Timedelta(weeks=4)
     weekly_dates = pd.date_range(start=start_date, end=end_date, freq='W-MON')
     
-    buffer_data = []
-    facilities = remaining['Site'].unique()
+    # Create a copy of remaining capacity to track changes over time
+    current_remaining = remaining.copy()
+    
     for week in weekly_dates:
         for facility in facilities:
-            facility_groups = remaining[remaining['Site'] == facility]
-            total_gain = facility_groups[facility_groups['StrippingStopDate'] <= week]['Gain-eggs-remaining'].sum()
-            total_shield = facility_groups[facility_groups['StrippingStopDate'] <= week]['Shield-eggs-remaining'].sum()
+            facility_groups = current_remaining[current_remaining['Site'] == facility].iloc[0]
+            total_gain = facility_groups['Gain-eggs-remaining']
+            total_shield = facility_groups['Shield-eggs-remaining']
             total_remaining = total_gain + total_shield
+            
+            # Adjust remaining capacity based on assigned orders up to this week
+            assigned_orders = results[
+                (results['AssignedGroup'] == facility) & 
+                (pd.to_datetime(results['DeliveryDate']) <= week) &
+                (results['IsDummy'] == False)
+            ]
+            for _, order in assigned_orders.iterrows():
+                if order['Product'] == 'Gain':
+                    total_gain -= order['Volume']
+                elif order['Product'] == 'Shield':
+                    total_shield -= order['Volume']
+            
+            # Update current remaining for next iteration
+            current_remaining.loc[current_remaining['Site'] == facility, 'Gain-eggs-remaining'] = total_gain
+            current_remaining.loc[current_remaining['Site'] == facility, 'Shield-eggs-remaining'] = total_shield
+            total_remaining = max(total_gain + total_shield, 0)  # Ensure non-negative
+            
             buffer_data.append({
                 'Week': week,
                 'Facility': facility,
                 'TotalRemaining': total_remaining / 1e6  # Convert to millions for readability
             })
+    
     buffer_df = pd.DataFrame(buffer_data)
     
     fig = px.line(buffer_df, x='Week', y='TotalRemaining', color='Facility',
@@ -378,8 +403,8 @@ def update_results(n_clicks, order_data, fish_group_data):
         results_columns = [{'name': col, 'id': col} for col in results_df.columns]
         capacity_columns = [{'name': col, 'id': col} for col in capacity_df.columns]
         
-        # Create weekly inventory buffer visualization
-        buffer_fig = create_buffer_graph(capacity_df)
+        # Create weekly inventory buffer visualization with adjusted capacity
+        buffer_fig = create_buffer_graph(capacity_df, results_df)
         
         # Update button text with solver status
         status = solution['status']
