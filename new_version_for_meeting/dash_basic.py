@@ -9,17 +9,17 @@ import pulp as pl
 # Initialize the Dash app with a Bootstrap theme
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.FLATLY])
 
-# Default data for orders
+# Adjusted default data for orders with more deliverable orders
 default_orders = pd.DataFrame({
-    'OrderNr': ['O001', 'O002', 'O003', 'O004', 'O005'],
-    'DeliveryDate': ['2024-09-15', '2024-10-10', '2024-09-20', '2024-09-25', '2024-09-30'],
-    'OrderStatus': ['Bekreftet', 'Bekreftet', 'Bekreftet', 'Kansellert', 'Bekreftet'],
-    'CustomerName': ['AquaGen AS', 'NTNU', 'SalMar Farming AS', 'Ewos Innovation AS', 'Lerøy Midt AS'],
-    'Product': ['Gain', 'Shield', 'Gain', 'Shield', 'Gain'],
-    'Organic': [False, False, True, False, False],
-    'Volume': [500000, 300000, 400000, 200000, 1000000],
-    'LockedSite': [None, None, None, None, 'Hønsvikgulen'],
-    'PreferredSite': ['Vestseøra', 'Kilavågen Land', 'Bogen', None, None]
+    'OrderNr': ['O001', 'O002', 'O003', 'O004', 'O005', 'O006', 'O007'],
+    'DeliveryDate': ['2024-08-15', '2024-09-01', '2024-10-01', '2024-09-25', '2024-08-20', '2024-09-05', '2024-11-01'],
+    'OrderStatus': ['Bekreftet', 'Bekreftet', 'Bekreftet', 'Kansellert', 'Bekreftet', 'Bekreftet', 'Bekreftet'],
+    'CustomerName': ['AquaGen AS', 'NTNU', 'SalMar Farming AS', 'Ewos Innovation AS', 'Lerøy Midt AS', 'Marine Harvest', 'Cermaq'],
+    'Product': ['Gain', 'Gain', 'Shield', 'Shield', 'Gain', 'Shield', 'Gain'],
+    'Organic': [False, True, False, False, False, False, True],
+    'Volume': [500000, 300000, 400000, 200000, 600000, 250000, 350000],
+    'LockedSite': [None, None, None, None, 'Hønsvikgulen', None, None],
+    'PreferredSite': ['Vestseøra', 'Bogen', 'Kilavågen Land', None, None, 'Vestseøra', 'Kilavågen Land']
 })
 
 # Default data for fish groups
@@ -241,7 +241,7 @@ def create_buffer_graph(remaining, results):
     fig.update_traces(line=dict(width=3), marker=dict(size=10))
     return fig
 
-# Table styling function for consistency
+# Table styling function with corrected filter query syntax
 def get_table_style():
     return {
         'style_table': {'overflowX': 'auto', 'borderRadius': '10px', 'overflow': 'hidden'},
@@ -263,6 +263,14 @@ def get_table_style():
         'style_data_conditional': [
             {'if': {'row_index': 'odd'}, 'backgroundColor': '#f9f9f9'},
             {'if': {'state': 'selected'}, 'backgroundColor': '#cce5ff', 'border': '1px solid #007bff'},
+            {
+                'if': {
+                    'filter_query': '{AssignedGroup} != "Skipped-Cancelled" and {AssignedGroup} != "Dummy" and {AssignedGroup} != ""',
+                    'column_id': 'OrderNr'
+                },
+                'backgroundColor': '#d4edda',  # Light green for delivered orders
+                'color': 'black'
+            }
         ]
     }
 
