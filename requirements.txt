@@ -3,3 +3,4 @@ pandas
 plotly
 pulp
 dash_bootstrap_components
+openpyxl

@@ -130,7 +130,7 @@ def load_validated_data():
     return orders_df, fish_groups_df
 
 # -------------------------------
-# SOLVER FUNCTION (same as before)
+# SOLVER FUNCTION
 # -------------------------------
 
 def solve_egg_allocation(orders, fish_groups):
@@ -190,9 +190,11 @@ def solve_egg_allocation(orders, fish_groups):
                    for i in active_orders.index for j in all_fish_groups.index)
     )
     
+    # Each order assigned exactly once
     for i in active_orders.index:
         prob += pl.lpSum(x[i, j] for j in all_fish_groups.index) == 1
     
+    # Gains vs Shield capacity
     gain_orders = [i for i in active_orders.index if active_orders.loc[i, "Product"] == "Gain"]
     shield_orders = [i for i in active_orders.index if active_orders.loc[i, "Product"] == "Shield"]
     
@@ -203,12 +205,14 @@ def solve_egg_allocation(orders, fish_groups):
             prob += pl.lpSum(x[i, j] * active_orders.loc[i, "Volume"] for i in gain_orders) <= Gcap
             prob += pl.lpSum(x[i, j] * active_orders.loc[i, "Volume"] for i in (gain_orders + shield_orders)) <= (Gcap + Scap)
     
+    # Organic requirement
     for i in active_orders.index:
         if active_orders.loc[i, "Organic"]:
             for j in all_fish_groups.index:
                 if (not all_fish_groups.loc[j, "Organic"]) and (all_fish_groups.loc[j, "Site"] != "Dummy"):
                     prob += x[i, j] == 0
     
+    # Locked site requirement
     for i in active_orders.index:
         locked_site = active_orders.loc[i, "LockedSite"]
         if pd.notna(locked_site) and locked_site != "":
@@ -216,15 +220,21 @@ def solve_egg_allocation(orders, fish_groups):
                 if (all_fish_groups.loc[j, "Site"] != locked_site) and (all_fish_groups.loc[j, "Site"] != "Dummy"):
                     prob += x[i, j] == 0
     
+    # Dummy penalty
     for i in active_orders.index:
         prob += dummy_penalty[i] >= x[i, dummy_idx]
     
+    # Preferred site penalty
     for i in active_orders.index:
         if i in pref_penalty:
             pref_site = active_orders.loc[i, "PreferredSite"]
-            not_pref = [jj for jj in all_fish_groups.index if (all_fish_groups.loc[jj, "Site"] != pref_site) and (all_fish_groups.loc[jj, "Site"] != "Dummy")]
+            not_pref = [
+                jj for jj in all_fish_groups.index
+                if (all_fish_groups.loc[jj, "Site"] != pref_site) and (all_fish_groups.loc[jj, "Site"] != "Dummy")
+            ]
             prob += pref_penalty[i] >= pl.lpSum(x[i, jj] for jj in not_pref)
     
+    # Date constraints
     for i in active_orders.index:
         ddate = active_orders.loc[i, "DeliveryDate"]
         for j in all_fish_groups.index:
@@ -272,7 +282,15 @@ def solve_egg_allocation(orders, fish_groups):
     capacity["TotalEggsUsed"] = total_used
     capacity["TotalEggsRemaining"] = capacity["TotalEggs"] - capacity["TotalEggsUsed"]
     
-    final_capacity = capacity[["Site", "StrippingStartDate", "StrippingStopDate", "TotalEggs", "Organic", "TotalEggsUsed", "TotalEggsRemaining"]]
+    final_capacity = capacity[[
+        "Site",
+        "StrippingStartDate",
+        "StrippingStopDate",
+        "TotalEggs",
+        "Organic",
+        "TotalEggsUsed",
+        "TotalEggsRemaining"
+    ]]
     
     return {
         "status": solver_status,
@@ -312,8 +330,14 @@ def create_buffer_graph(remaining, results):
                 "TotalRemaining": current_rem[facility] / 1e6
             })
     buffer_df = pd.DataFrame(buffer_data)
-    fig = px.line(buffer_df, x="Week", y="TotalRemaining", color="Facility",
-                  title="Weekly Inventory Buffer (Merged Gains+Shield)", markers=True)
+    fig = px.line(
+        buffer_df,
+        x="Week",
+        y="TotalRemaining",
+        color="Facility",
+        title="Weekly Inventory Buffer (Merged Gains+Shield)",
+        markers=True
+    )
     fig.update_layout(
         xaxis_title="Week",
         yaxis_title="Available Roe (Millions)",
@@ -398,11 +422,9 @@ app.layout = dbc.Container([
                 columns=[{"name": col, "id": col, "editable": True} for col in orders_data.columns],
                 editable=True,
                 row_deletable=True,
-                # Pagination
                 page_action='native',
                 page_current=0,
                 page_size=10,
-                # Sorting & Filtering
                 sort_action='native',
                 filter_action='native',
                 **get_table_style()
@@ -416,11 +438,9 @@ app.layout = dbc.Container([
                 columns=[{"name": col, "id": col, "editable": True} for col in fish_groups_data.columns],
                 editable=True,
                 row_deletable=True,
-                # Pagination
                 page_action='native',
                 page_current=0,
                 page_size=10,
-                # Sorting & Filtering
                 sort_action='native',
                 filter_action='native',
                 **get_table_style()
@@ -478,6 +498,16 @@ app.layout = dbc.Container([
                         dcc.Graph(id="buffer-visualization"),
                     ], width=12),
                 ]),
+
+                # Download buttons for results
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Button("Download Results (CSV)", id="download-csv-button", color="info", className="mt-2 me-2"),
+                        dcc.Download(id="download-csv"),
+                        dbc.Button("Download Results (Excel)", id="download-xlsx-button", color="secondary", className="mt-2"),
+                        dcc.Download(id="download-xlsx"),
+                    ], width=12)
+                ], className="mt-3"),
             ]
         )
     )
@@ -557,8 +587,33 @@ def update_results(n_clicks, order_data, fish_group_data):
     
     return ({"display": "none"}, [], [], [], [], {}, "Solve Allocation Problem")
 
+# NEW: Download callbacks
+@app.callback(
+    Output("download-csv", "data"),
+    Input("download-csv-button", "n_clicks"),
+    State("results-table", "data"),
+    prevent_initial_call=True
+)
+def export_results_csv(n_clicks, results_data):
+    if n_clicks:
+        df = pd.DataFrame(results_data)
+        return dcc.send_data_frame(df.to_csv, "solver_results.csv", index=False)
+    return None
+
+@app.callback(
+    Output("download-xlsx", "data"),
+    Input("download-xlsx-button", "n_clicks"),
+    State("results-table", "data"),
+    prevent_initial_call=True
+)
+def export_results_excel(n_clicks, results_data):
+    if n_clicks:
+        df = pd.DataFrame(results_data)
+        return dcc.send_data_frame(df.to_excel, "solver_results.xlsx", sheet_name="SolverResults", index=False)
+    return None
+
 # -------------------------------
-# ONLY THIS PART IS CHANGED
+# RUN LOCAL OR VIA RENDER
 # -------------------------------
 if __name__ == "__main__":
     import os
@@ -566,5 +621,6 @@ if __name__ == "__main__":
     host = '0.0.0.0'
     debug = os.environ.get('DEBUG', 'True').lower() == 'true'
     print(f"Starting server on {host}:{port} with debug={debug}")
-    app.run_server(host=host, port=port, debug=debug)
+    # Use app.run(...) instead of app.run_server(...) to avoid ObsoleteAttributeException
+    app.run(host=host, port=port, debug=debug)
 
