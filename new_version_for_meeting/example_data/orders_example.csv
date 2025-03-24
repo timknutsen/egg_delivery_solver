@@ -1,0 +1,571 @@
+OrderNr,DeliveryDate,OrderStatus,CustomerName,Product,Organic,Volume,LockedSite,PreferredSite
+6323,2024-07-03,Kansellert,Lerøy Sjøtroll Kjærelva AS,Gain,,1287500.0,,
+6326,2024-07-03,Kansellert,Lerøy Sjøtroll Kjærelva AS,Gain,,1287500.0,,
+6032,2024-07-10,Kansellert,Lerøy Sjøtroll Kjærelva AS,Gain,,1287500.0,,Hønsvikgulen
+6004,2024-07-10,Kansellert,Lerøy Sjøtroll Kjærelva AS,Gain,,1287500.0,,Hønsvikgulen
+5840,2024-07-10,Kansellert,Nordlaks Smolt AS - Avd. Innhavet,Shield,,3337200.0,,
+6070,2024-07-17,Kansellert,Kjørsvikbugen Settefisk AS,Shield,Organic,1648000.0,,Vestseøra
+6327,2024-07-17,Kansellert,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,,
+5998,2024-07-17,Kansellert,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,,Hønsvikgulen
+5634,2024-07-17,Kansellert,"SalMar Settefisk AS, Senja",Shield,,2575000.0,,Bogen
+6397,2024-07-24,Kansellert,SalMar Settefisk  AS,Shield,,3090000.0,,Vestseøra
+6017,2024-07-24,Kansellert,"MOWI Scotland Ltd, Inchmore",Shield,,4725000.0,,Holywood
+5781,2024-07-24,Kansellert,Lerøy Aurora AS,Gain,,3090000.0,,Hønsvikgulen
+6328,2024-07-24,Kansellert,Lerøy Aurora AS,Gain,,3090000.0,,Vestseøra
+6034,2024-07-24,Kansellert,Lerøy Midt AS - Avd. Lensvik,Gain,,875500.0,,
+6050,2024-07-31,Kansellert,Neptun Salmo AS,Shield,,737480.0,,Vestseøra
+5779,2024-08-07,Kansellert,Sisomar AS,Gain,,1442000.0,,Barstadvik
+5999,2024-08-21,Kansellert,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,,Hønsvikgulen
+5782,2024-08-28,Kansellert,Skardalen Settefisk AS,Gain,,1236000.0,,Barstadvik
+6398,2024-09-04,Kansellert,Ænes Inkubator AS,Shield,Organic,2884000.0,,Bogen
+6456,2024-09-11,Bekreftet,"AquaGen AS, avd. Profunda",Nucleus,,1.0,,Barstadvik
+6329,2024-09-18,Kansellert,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,,
+5635,2024-09-18,Kansellert,"Salmar Settefisk AS, Tjuin",Shield,,4532000.0,,Bogen
+6360,2024-09-18,Kansellert,Bakkafrost Farming P/F,Shield,,3605000.0,,
+6372,2024-09-18,Kansellert,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,1300890.0,,
+5786,2024-10-02,Skal ikke behandles av integrasjon aquaspor,Lerøy Aurora  - avd Lebesby,Gain,,2575000.0,Locked,Hønsvikgulen
+6000,2024-10-02,Kansellert,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,,
+6090,2024-10-02,Kansellert,Atlantic Sapphire USA LLC,Shield,,535600.0,,
+5785,2024-10-02,Kansellert,Fjordsmolt AS,Shield,,1236000.0,,Bogen
+6033,2024-10-08,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6005,2024-10-08,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6051,2024-10-09,Fakturert,Neptun Salmo AS,Shield,,737480.0,,Vestseøra
+5638,2024-10-09,Fakturert,"SalMar Settefisk AS, Senja",Shield,,2832500.0,,Vestseøra
+6334,2024-10-09,Fakturert,Mowi - avd. Haukå,Shield,,2060000.0,,Vestseøra
+5784,2024-10-10,Fakturert,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2656885.0,,Vestseøra
+6502,2024-10-10,Fakturert,Polarsmolt AS,Gain,,1442000.0,,Bogen
+6487,2024-10-10,Fakturert,"Neptun Salmo AS, avd. Botnan",Shield,,230720.0,,Vestseøra
+5936,2024-10-10,Fakturert,Erko Settefisk AS,Gain,,1081500.0,,Vestseøra
+6438,2024-10-11,Fakturert,"SalMar Settefisk AS, Senja",Shield,,1360488.0,,Bogen
+5639,2024-10-16,Fakturert,"SalMar Settefisk AS, Senja",Shield,,3347500.0,,Bogen
+6125,2024-10-16,Fakturert,Trøndersmolt AS,Shield,,721000.0,,Vestseøra
+5776,2024-10-17,Fakturert,Hardingsmolt AS,Shield,,1236000.0,,Vestseøra
+6494,2024-10-17,Fakturert,"NMBU,Senter for Bærekraftig Akvakultur",Shield,,4120.0,,Vestseøra
+6045,2024-10-17,Fakturert,SalMar Farming AS,Shield,,3862500.0,,Vestseøra
+5791,2024-10-22,Fakturert,Sisomar AS,Gain,,3141500.0,,Vestseøra
+5839,2024-10-23,Kansellert,Nordlaks Smolt AS - avd. Mørsvik,Shield,,2163000.0,,
+6497,2024-10-23,Fakturert,Ewos Innovation AS,Shield,,10300.0,,Vestseøra
+6496,2024-10-23,Fakturert,Ewos Innovation AS,Shield,,18540.0,,Vestseøra
+6080,2024-10-29,Fakturert,Flatanger Settefisk AS,Gain,,2535750.0,,Vestseøra
+5838,2024-10-31,Fakturert,Nordlaks Smolt AS - Avd. Innhavet,Shield,,3244500.0,,Bogen
+6525,2024-11-05,Fakturert,Sætre Settefisk AS,Shield,,1287500.0,,Vestseøra
+6526,2024-11-05,Fakturert,Hjelvik Settefisk AS,Shield,,875500.0,,Vestseøra
+6524,2024-11-05,Fakturert,Eik Settefisk AS,Gain,,824000.0,,Vestseøra
+5613,2024-11-06,Kansellert,"SalMar Settefisk AS, Follafoss",Shield,Organic,4841000.0,,Vestseøra
+5718,2024-11-06,Fakturert,Elvenesstrand Smolt AS,Gain,,926600.0,,Bogen
+6449,2024-11-06,Bekreftet,"AquaGen AS, avd. Hemne",Nucleus,,,,Vestseøra
+6310,2024-11-06,Fakturert,Lerøy Midt AS- Avd Kvernvik,Gain,,772500.0,Locked,Hønsvikgulen
+5718,2024-11-06,Fakturert,Elvenesstrand Smolt AS,Gain,,-20600.0,,Bogen
+6113,2024-11-07,Fakturert,Polarsmolt AS - Avd. Brenna,Gain,,772500.0,,Vestseøra
+6283,2024-11-12,Fakturert,Måsøval Vartdal AS,Gain,,566500.0,,Vestseøra
+6035,2024-11-13,Fakturert,Lerøy Midt AS - Avd. Lensvik,Gain,,1236000.0,Locked,Hønsvikgulen
+6272,2024-11-13,Fakturert,Bindalssmolt AS - Avd. Saglifossen,Gain,,1854000.0,,Bogen
+6074,2024-11-13,Fakturert,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+5995,2024-11-13,Kansellert,Lerøy Midt AS - Avd. Botn,Gain,,463500.0,,
+6499,2024-11-19,Fakturert,Cermaq Norway - Avd. Holmvåg,Shield,,288400.0,,Bogen
+5572,2024-11-19,Fakturert,Akvafarm AS,Shield,,875500.0,,Bogen
+5571,2024-11-19,Fakturert,Akvafarm AS,Shield,Organic,875500.0,,Bogen
+6091,2024-11-20,Kansellert,Atlantic Sapphire USA LLC,Shield,,535600.0,,
+6361,2024-11-20,Kansellert,Bakkafrost Farming P/F,Shield,,1545000.0,,
+6434,2024-11-21,Fakturert,Barlindbotn Settefisk AS,Shield,Organic,525000.0,,Vestseøra
+6395,2024-11-21,Fakturert,Femangerlaks AS,Gain,Organic,772500.0,,Vestseøra
+5851,2024-11-21,Fakturert,Cermaq Norway - Avd. Forsan,Shield,,2560580.0,,Vestseøra
+6266,2024-11-21,Fakturert,Barlindbotn Settefisk AS,Shield,,2100000.0,,Vestseøra
+5852,2024-11-21,Fakturert,Cermaq Norway - Avd. Forsan,Shield,,2729500.0,,Vestseøra
+6278,2024-11-22,Fakturert,Måsøval Åsen AS,Gain,,927000.0,,Vestseøra
+5792,2024-11-22,Fakturert,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Kilavågen Land
+6275,2024-11-26,Fakturert,Måsøval Laksåvika AS,Elite Sikring,,618000.0,,Vestseøra
+6146,2024-11-27,Kansellert,Cermaq Norway - Avd. Holmvåg,Elite,,309000.0,,Bogen
+6274,2024-11-27,Fakturert,Måsøval Laksåvika AS,Gain,,360500.0,,Vestseøra
+6442,2024-11-27,Kansellert,Helgeland Smolt AS - Avd. Sundsfjord,Elite Sikring,,247200.0,,Vestseøra
+5774,2024-11-27,Fakturert,Fister Smolt AS,Gain,,1390500.0,,Kilavågen Land
+6443,2024-11-27,Fakturert,Nordlaks Smolt AS - Avd. Innhavet,Elite Sikring,,412000.0,,Vestseøra
+6463,2024-11-27,Fakturert,Helgeland Smolt AS - Avd. Sundsfjord,Elite,,206000.0,,Vestseøra
+6407,2024-11-27,Fakturert,Nordlaks Smolt AS - Avd. Innhavet,Elite,,257500.0,,Vestseøra
+6186,2024-11-27,Fakturert,Helgeland Smolt AS - Avd. Sundsfjord,Nucleus,,103000.0,,Vestseøra
+6037,2024-11-28,Fakturert,Lerøy Aurora  - avd Lebesby,Gain,,2575000.0,Locked,Hønsvikgulen
+6001,2024-11-28,Fakturert,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6495,2024-11-28,Fakturert,Osan Settefisk AS,Shield,Organic,2266000.0,,Kilavågen Land
+6537,2024-11-28,Fakturert,"SalMar Settefisk AS, Follafoss",Shield,Organic,4635000.0,,Kilavågen Land
+6200,2024-11-28,Fakturert,Lerøy Midt AS - Avd. Botn,Elite,,257500.0,,Vestseøra
+6441,2024-11-28,Fakturert,Lerøy Midt AS - Avd. Botn,Elite Sikring,,463500.0,,Vestseøra
+6306,2024-12-03,Fakturert,Ewos Innovation AS,Shield,,18540.0,,Kilavågen Land
+5793,2024-12-04,Kansellert,Sisomar AS,Gain,,1287500.0,,Bogen
+6458,2024-12-05,Fakturert,"Neptun Salmo AS, avd. Lokkarfisk",Shield,,1153600.0,,Kilavågen Land
+6403,2024-12-05,Fakturert,Damfisk Settefisk AS,Gain,,1339000.0,,Kilavågen Land
+6643,2024-12-10,Fakturert,Cermaq Norway - Avd. Forsan,Gain,,329600.0,,Vestseøra
+6532,2024-12-10,Fakturert,Femangerlaks AS,Gain,Organic,1699500.0,,Kilavågen Land
+6452,2024-12-10,Kansellert,Cermaq Norway - Avd. Forsan,Gain,,329600.0,,Ikke valgt
+6280,2024-12-10,Fakturert,Måsøval Urke AS,Gain,,463500.0,,Vestseøra
+6268,2024-12-11,Fakturert,Gjølanger Settefisk AS,Gain,,1260000.0,,Kilavågen Land
+6250,2024-12-11,Kansellert,Grieg Seafood Rogaland - Avd. Hognaland,Gain,,700400.0,,Kilavågen Land
+6241,2024-12-11,Fakturert,Sande Settefisk AS,Gain,,360500.0,,Vestseøra
+6252,2024-12-12,Fakturert,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,1400001.0,,Kilavågen Land
+5794,2024-12-12,Kansellert,Silver Seed AS,Gain,,927000.0,,
+6536,2024-12-12,Fakturert,"Salmar Settefisk AS, Tjuin",Gain,,4377500.0,,Vestseøra
+6248,2024-12-12,Fakturert,Grieg Seafood Rogaland - Avd. Hognaland,Elite,,309000.0,,Vestseøra
+6684,2024-12-12,Fakturert,"NMBU,Senter for Bærekraftig Akvakultur",Shield,,4120.0,,Vestseøra
+6444,2024-12-12,Fakturert,Grieg Seafood Rogaland - Avd. Hognaland,Nucleus,,103000.0,,Vestseøra
+6686,2024-12-13,Fakturert,"SalMar Settefisk AS, Follafoss",Shield,Organic,3399000.0,,
+6686,2024-12-13,Fakturert,"SalMar Settefisk AS, Follafoss",Shield,Organic,-3399000.0,,
+6633,2024-12-17,Fakturert,Mowi - avd. Øyerhamn,Gain,,2060.0,,Bogen
+6356,2024-12-17,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6355,2024-12-17,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+5795,2024-12-18,Kansellert,Fjordsmolt AS,Shield,,1236000.0,,Kilavågen Land
+6002,2024-12-18,Fakturert,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+5479,2024-12-18,Kansellert,Nekton Settefisk AS,Gain,,2500001.0,,
+5503,2024-12-19,Bekreftet,"AquaGen AS, avd. Hemne",Nucleus,,,,Vestseøra
+5836,2024-12-19,Fakturert,Helgeland Smolt AS - Avd. Reppen,Gain,,4120000.0,,Bogen
+6538,2024-12-19,Fakturert,"SalMar Settefisk AS, Follafoss",Gain,,3296000.0,,Kilavågen Land
+5863,2024-12-20,Fakturert,Cermaq Norway - Avd. Hopen,Shield,,1493500.0,,Bogen
+6340,2024-12-20,Fakturert,"Neptun Salmo AS, avd. Botnan",Shield,,1210250.0,,Kilavågen Land
+5477,2024-12-20,Fakturert,Nekton Settefisk AS avd Sagosen,Shield,,1700530.0,,Kilavågen Land
+6055,2024-12-25,Bekreftet,"AquaGen AS, avd. Hemne",Elite,,1.0,,Vestseøra
+6060,2024-12-25,Prognose,"AquaGen AS, avd. Hemne",Gain,,9270.0,,Vestseøra
+5505,2024-12-25,Prognose,"AquaGen AS, avd. Hemne",Gain,,1.0,,Vestseøra
+6062,2024-12-25,Prognose,"AquaGen AS, avd. Hemne",Gain,,1.0,,Vestseøra
+5796,2025-01-01,Kansellert,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,
+6159,2025-01-03,Fakturert,Cermaq Norway - Avd. Holmvåg,Shield,,1339000.0,,Bogen
+6539,2025-01-03,Kansellert,"Salmar Settefisk AS, Tjuin",Shield,,4377500.0,,
+6753,2025-01-07,Fakturert,Havforskningsinstituttet,Shield,,30900.0,,Kilavågen Land
+6196,2025-01-07,Kansellert,Nekton Settefisk AS avd Sagosen,Shield,,710001.0,,
+6440,2025-01-08,Fakturert,Havbruksstasjonen i Tromsø AS,Shield,,51500.0,,Bogen
+6412,2025-01-08,Fakturert,Ewos Innovation AS,Shield,,4120.0,,Kilavågen Land
+5837,2025-01-08,Fakturert,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,4120000.0,,Bogen
+6190,2025-01-09,Fakturert,Nekton Settefisk AS,Gain,,920000.0,,Kilavågen Land
+6762,2025-01-09,Levert,"SalMar Settefisk AS, Follafoss",Gain,,3090.0,,
+6177,2025-01-09,Fakturert,Nordlaks Smolt AS - avd. Mørsvik,Shield,,1854000.0,,Bogen
+6760,2025-01-10,Levert ikke fakturerbar,Florafauna,Shield,,206.0,,Vestseøra
+6471,2025-01-10,Fakturert,Nordlaks Smolt AS - Avd. Innhavet,Shield,,1184500.0,,Bogen
+6286,2025-01-15,Fakturert,Villa Smolt AS,Shield,,1751000.0,,Kilavågen Land
+6687,2025-01-15,Fakturert,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,618000.0,,Kilavågen Land
+6793,2025-01-15,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,-1236000.0,Locked,Hønsvikgulen
+6792,2025-01-15,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,-1236000.0,Locked,Hønsvikgulen
+6794,2025-01-15,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6797,2025-01-15,Fakturert,Lerøy Aurora  - avd Lebesby,Gain,,2575000.0,Locked,Hønsvikgulen
+6796,2025-01-15,Fakturert,Lerøy Aurora  - avd Lebesby,Gain,,-2575000.0,Locked,Hønsvikgulen
+6795,2025-01-15,Fakturert,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6284,2025-01-16,Fakturert,Olden Oppdrettsanlegg AS,Shield,,1854000.0,,Kilavågen Land
+6245,2025-01-16,Fakturert,Flatanger Settefisk AS,Gain,,2535750.0,,Kilavågen Land
+6908,2025-01-16,Fakturert,Lerøy Midt AS,Shield,,2575000.0,Locked,Hønsvikgulen
+6908,2025-01-16,Fakturert,Lerøy Midt AS,Gain,,-2575000.0,Locked,Hønsvikgulen
+6791,2025-01-17,Levert ikke fakturerbar,Florafauna,Shield,,206.0,,Vestseøra
+6204,2025-01-21,Kansellert,Vikan Settefisk AS,Gain,,947600.0,,
+6189,2025-01-22,Prognose,Lerøy Midt AS - Avd. Botn,Gain,,824000.0,Locked,Hønsvikgulen
+6192,2025-01-22,Bekreftet,Lerøy Midt AS - Avd. Lensvik,Gain,,1236000.0,Locked,Hønsvikgulen
+6181,2025-01-23,Fakturert,Nordlaks Smolt AS - Avd. Innhavet,Shield,,1493500.0,,Bogen
+6457,2025-01-23,Fakturert,Sande Settefisk AS,Gain,,566500.0,,Vestseøra
+6122,2025-01-28,Levert,"Neptun Salmo AS, avd. Lokkarfisk",Shield,,705550.0,,Kilavågen Land
+6773,2025-02-04,Bekreftet,"NTNU, Felles Fakturamottak",Shield,,206.0,,Vestseøra
+5642,2025-02-05,Bekreftet,SalMar Farming AS,Gain,,3862500.0,,Bogen
+6188,2025-02-05,Bekreftet,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6291,2025-02-05,Kontrollert,Futaklettur P/F,Gain,,1545000.0,,Bogen
+6198,2025-02-06,Bekreftet,Lerøy Aurora  - avd Lebesby,Gain,,2729500.0,Locked,Hønsvikgulen
+6267,2025-02-06,Kansellert,Gjølanger Settefisk AS,Gain,,735000.0,,
+5797,2025-02-11,Kansellert,Fjordsmolt AS,Shield,,1236000.0,,
+6126,2025-02-12,Bekreftet,Trøndersmolt AS,Gain,,721000.0,,Vestseøra
+5717,2025-02-19,Bekreftet,Akvafarm AS - Avd. Skaland,Shield,,875500.0,,Kilavågen Land
+5573,2025-02-19,Bekreftet,Akvafarm AS - Avd. Skaland,Shield,Organic,875500.0,,Kilavågen Land
+6246,2025-02-19,Bekreftet,Flatanger Settefisk AS,Gain,,1854000.0,,Vestseøra
+6201,2025-02-20,Bekreftet,Lerøy Midt AS- Avd Kvernvik,Gain,,978500.0,Locked,Hønsvikgulen
+6215,2025-02-20,Bekreftet,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6774,2025-02-20,Bekreftet,Ewos Innovation AS,Shield,,30900.0,,Vestseøra
+6214,2025-02-20,Bekreftet,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6253,2025-02-26,Bekreftet,Fister Smolt AS,Gain,,1390500.0,,Kilavågen Land
+6472,2025-02-26,Bekreftet,Nordlaks Smolt AS - Avd. Innhavet,Shield,,669500.0,,Bogen
+6279,2025-03-04,Bekreftet,Måsøval Åsen AS,Gain,,1854000.0,,Kilavågen Land
+6123,2025-03-04,Bekreftet,"Neptun Salmo AS, avd. Botnan",Shield,,1199950.0,,Kilavågen Land
+6485,2025-03-05,Bekreftet,"MOWI Færøyane, Laksà",Gain,,1236000.0,,Barstadvik
+6401,2025-03-05,Bekreftet,Damfisk Settefisk AS,Gain,,1339000.0,,Kilavågen Land
+6445,2025-03-06,Bekreftet,Grieg Seafood Rogaland - Avd. Hognaland,Elite Sikring,,412000.0,,Vestseøra
+5937,2025-03-06,Bekreftet,Erko Settefisk AS,Gain,,1751000.0,,Kilavågen Land
+6775,2025-03-06,Bekreftet,Ewos Innovation AS,Shield,,14420.0,,Vestseøra
+6163,2025-03-06,Bekreftet,Cermaq Norway - Avd. Forsan,Shield,,1699500.0,,Bogen
+6160,2025-03-06,Bekreftet,Cermaq Norway - Avd. Hopen,Shield,,1699500.0,,Bogen
+6162,2025-03-06,Bekreftet,Cermaq Norway - Avd. Forsan,Shield,,1699500.0,,Bogen
+6276,2025-03-11,Bekreftet,Måsøval Laksåvika AS,Gain,,618000.0,,Vestseøra
+6277,2025-03-11,Bekreftet,Måsøval Laksåvika AS,Elite Sikring,,618000.0,,Vestseøra
+6477,2025-03-12,Bekreftet,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+6216,2025-03-13,Bekreftet,Lerøy Midt AS - Avd. Botn,Gain,,824000.0,Locked,Hønsvikgulen
+5640,2025-03-13,Kansellert,"SalMar Settefisk AS, Follafoss",Gain,,3296000.0,,
+6218,2025-03-14,Bekreftet,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6178,2025-03-19,Bekreftet,Nordlaks Smolt AS - avd. Mørsvik,Shield,,1854000.0,,Bogen
+5803,2025-03-19,Kansellert,Sisomar AS,Gain,,1442000.0,,Ikke valgt
+5801,2025-03-19,Kansellert,Sisomar AS,Gain,,3038500.0,,Ikke valgt
+6450,2025-03-19,Bekreftet,"AquaGen AS, avd. Hemne",Nucleus,,360500.0,,Vestseøra
+6182,2025-03-19,Bekreftet,Nordlaks Smolt AS - Avd. Innhavet,Elite,,463500.0,,Vestseøra
+6255,2025-03-20,Bekreftet,Grieg Seafood Rogaland - Avd. Trosnavåg,Elite Sikring,,957900.0,,Vestseøra
+6447,2025-03-20,Bekreftet,Nordlaks Smolt AS - Avd. Innhavet,Elite Sikring,,206000.0,,Vestseøra
+6503,2025-03-20,Bekreftet,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,412000.0,,Vestseøra
+5641,2025-03-23,Kansellert,"Salmar Settefisk AS, Tjuin",Shield,,3296000.0,,
+6287,2025-03-25,Bekreftet,Villa Smolt AS,Shield,,1905500.0,,Barstadvik
+6114,2025-03-26,Prognose,Polarsmolt AS,Gain,,1030000.0,,Vestseøra
+6171,2025-03-26,Bekreftet,Helgeland Smolt AS - Avd. Reppen,Gain,,4429000.0,,Bogen
+6448,2025-03-27,Bekreftet,Lerøy Midt AS - Avd. Botn,Elite Sikring,,927000.0,,Vestseøra
+6217,2025-03-27,Bekreftet,Lerøy Midt AS - Avd. Botn,Elite,,257500.0,,Vestseøra
+6285,2025-04-01,Bekreftet,Olden Oppdrettsanlegg AS,Shield,,515000.0,,Barstadvik
+6174,2025-04-02,Bekreftet,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,2575000.0,,Bogen
+6628,2025-04-02,Bekreftet,"SalMar Settefisk AS, Senja",Gain,,2832500.0,,Kilavågen Land
+6411,2025-04-03,Bekreftet,Lerøy Midt AS - Avd. Lensvik,Gain,,1236000.0,Locked,Hønsvikgulen
+6776,2025-04-03,Bekreftet,Ewos Innovation AS,Shield,,19570.0,,Vestseøra
+6220,2025-04-03,Bekreftet,Lerøy Aurora  - avd Lebesby,Gain,,2214500.0,Locked,Hønsvikgulen
+5643,2025-04-06,Kansellert,"Salmar Settefisk AS, Tjuin",Shield,,3296000.0,,
+6169,2025-04-07,Bekreftet,Cermaq Norway - Avd. Holmvåg,Shield,,1493500.0,,Bogen
+6197,2025-04-08,Bekreftet,Nekton Settefisk AS avd Sagosen,Shield,,650000.0,,Kilavågen Land
+6282,2025-04-08,Bekreftet,Måsøval Vartdal AS,Gain,,566500.0,,Kilavågen Land
+6281,2025-04-08,Bekreftet,Måsøval Urke AS,Gain,,515000.0,,Kilavågen Land
+6293,2025-04-08,Bekreftet,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+5644,2025-04-13,Kansellert,"SalMar Settefisk AS, Senja",Shield,,3296000.0,,
+6205,2025-04-15,Bekreftet,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6265,2025-04-17,Bekreftet,Hardingsmolt AS,Shield,,1236000.0,,Kilavågen Land
+6223,2025-04-17,Bekreftet,"Lerøy Midt AS, avd. Belsvik",Gain,,870350.0,Locked,Hønsvikgulen
+5646,2025-04-20,Kansellert,"SalMar Settefisk AS, Senja",Shield,,2575000.0,,
+6451,2025-04-24,Bekreftet,Salmon Evolution Dale AS,Gain,,618000.0,,Barstadvik
+5645,2025-04-27,Kansellert,"SalMar Settefisk AS, Senja",Shield,,3296000.0,,
+5805,2025-04-29,Bekreftet,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,1030000.0,,Kilavågen Land
+6789,2025-04-29,Ubekreftet,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,1030000.0,,Vestseøra
+6788,2025-04-29,Ubekreftet,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,1030000.0,,Vestseøra
+6258,2025-04-29,Bekreftet,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,1030000.0,,Kilavågen Land
+6263,2025-04-30,Kansellert,Grieg Seafood Rogaland - Avd. Trosnavåg,Elite Sikring,,1339000.0,,
+6183,2025-04-30,Bekreftet,Nordlaks Smolt AS - Avd. Innhavet,Shield,,1493500.0,,Bogen
+6292,2025-04-30,Prognose,Futaklettur P/F,Gain,,1545000.0,,Bogen
+6777,2025-05-01,Bekreftet,Ewos Innovation AS,Shield,,14420.0,,Vestseøra
+5810,2025-05-06,Bekreftet,Silver Seed AS,Gain,,1442000.0,,Bogen
+5808,2025-05-06,Kansellert,Fjordsmolt AS,Shield,,1236000.0,,Ikke valgt
+6256,2025-05-08,Bekreftet,Grieg Seafood Rogaland - Avd. Hognaland,Elite Sikring,,1236000.0,,Vestseøra
+6259,2025-05-14,Bekreftet,Fister Smolt AS,Gain,,1390500.0,,Kilavågen Land
+6226,2025-05-14,Bekreftet,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6225,2025-05-14,Bekreftet,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6459,2025-05-15,Bekreftet,Neptun Salmo AS,Shield,,737480.0,,Vestseøra
+6778,2025-05-15,Bekreftet,Ewos Innovation AS,Shield,,24720.0,,Vestseøra
+6261,2025-05-15,Kansellert,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,
+6515,2025-05-22,Bekreftet,Grieg Seafood Rogaland - Avd. Trosnavåg,Elite Sikring,,957900.0,,Vestseøra
+6516,2025-05-22,Bekreftet,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,412000.0,,Vestseøra
+6294,2025-05-27,Bekreftet,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+6229,2025-05-29,Bekreftet,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6222,2025-05-29,Bekreftet,Lerøy Aurora  - avd Lebesby,Elite,,309000.0,,Vestseøra
+6228,2025-05-29,Prognose,Lerøy Aurora  - avd Lebesby,Gain,,2575000.0,Locked,Hønsvikgulen
+6597,2025-06-11,Ubekreftet,SalMar Farming AS,Shield,,3862500.0,,Bogen
+6478,2025-06-11,Bekreftet,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+5648,2025-06-18,Bekreftet,"SalMar Settefisk AS, Senja",Shield,,2832500.0,,Vestseøra
+6179,2025-06-18,Bekreftet,Nordlaks Smolt AS - avd. Mørsvik,Shield,,1957000.0,,Vestseøra
+5647,2025-06-18,Bekreftet,"Salmar Settefisk AS, Tjuin",Shield,,4377500.0,,Vestseøra
+6184,2025-06-18,Bekreftet,Nordlaks Smolt AS - Avd. Innhavet,Shield,,3337200.0,,Bogen
+6206,2025-06-24,Bekreftet,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6242,2025-06-24,Bekreftet,Sande Settefisk AS,Gain,,391400.0,,Barstadvik
+5614,2025-06-25,Bekreftet,"SalMar Settefisk AS, Follafoss",Shield,Organic,3193000.0,,Bogen
+6164,2025-06-26,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2884000.0,,Bogen
+6168,2025-06-26,Bekreftet,Cermaq Norway - Avd. Forsan,Elite,,309000.0,,Vestseøra
+6779,2025-06-26,Bekreftet,Ewos Innovation AS,Shield,,22660.0,,Vestseøra
+6165,2025-06-26,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2884000.0,,Bogen
+6546,2025-07-01,Bekreftet,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Vestseøra
+5695,2025-07-02,Bekreftet,"SalMar Settefisk AS, Senja",Gain,,2832500.0,,Vestseøra
+6264,2025-07-03,Kansellert,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Ikke valgt
+5694,2025-07-06,Bekreftet,"SalMar Settefisk AS, Senja",Shield,,3090000.0,,Barstadvik
+6175,2025-07-10,Bekreftet,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,4635000.0,,Bogen
+6504,2025-07-14,Bekreftet,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+6547,2025-07-16,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,618000.0,,Vestseøra
+5692,2025-07-16,Bekreftet,"SalMar Settefisk AS, Follafoss",Shield,,3296000.0,,Barstadvik
+5693,2025-07-16,Bekreftet,"Salmar Settefisk AS, Tjuin",Shield,,4377500.0,,Barstadvik
+6598,2025-07-16,Ubekreftet,Kjørsvikbugen Settefisk AS,Shield,Organic,1648000.0,,Vestseøra
+5938,2025-07-17,Bekreftet,Erko Settefisk AS,Gain,Organic,772500.0,,Vestseøra
+6172,2025-07-17,Bekreftet,Helgeland Smolt AS - Avd. Reppen,Gain,,3605000.0,,Bogen
+5696,2025-07-27,Bekreftet,"SalMar Settefisk AS, Senja",Shield,,3090000.0,,Barstadvik
+6124,2025-07-29,Bekreftet,"Neptun Salmo AS, avd. Botnan",Shield,,737480.0,,Vestseøra
+6589,2025-07-31,Prognose,"Neptun Salmo AS, avd. Botnan",Shield,,,,Barstadvik
+6191,2025-08-05,Bekreftet,Nekton Settefisk AS,Gain,,1600001.0,,Vestseøra
+6170,2025-08-06,Prognose,Cermaq Norway - Avd. Holmvåg,Shield,,1493500.0,,Bogen
+6542,2025-08-07,Kansellert,Sisomar AS,Gain,,1442000.0,,Ikke valgt
+6552,2025-08-13,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,721000.0,,Barstadvik
+6780,2025-08-20,Bekreftet,Ewos Innovation AS,Shield,,22660.0,,Barstadvik
+6769,2025-08-20,Prospect,Eide Fjordbruk AS,Gain,,1030000.0,,Barstadvik
+6578,2025-08-22,Prognose,Silver Seed AS,Gain,,,,Bogen
+6150,2025-08-28,Prognose,Nordlaks Smolt AS - avd. Nusfjord,Shield,,618000.0,,Bogen
+6148,2025-08-28,Kansellert,Helgeland Smolt AS - Avd. Reppen,Gain,,2575000.0,,Ikke valgt
+6505,2025-09-02,Bekreftet,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+6489,2025-09-02,Bekreftet,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6781,2025-09-04,Bekreftet,Ewos Innovation AS,Shield,,18540.0,,Barstadvik
+6570,2025-09-04,Kansellert,"Salmar Settefisk AS, Tjuin",Shield,,,,
+6481,2025-09-10,Prognose,Futaklettur P/F,Gain,,1545000.0,,Bogen
+6262,2025-09-10,Bekreftet,Fister Smolt AS,Gain,,1390500.0,,Vestseøra
+6584,2025-09-11,Prognose,Akvafarm AS - Avd. Skaland,Shield,Organic,1030000.0,,Vestseøra
+6585,2025-09-11,Prognose,Akvafarm AS - Avd. Skaland,Shield,,721000.0,,Vestseøra
+6479,2025-09-17,Ubekreftet,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+6510,2025-09-17,Prognose,Scottish Sea Farms Ltd.,Gain,,1648000.0,,Barstadvik
+6571,2025-09-18,Kansellert,"Salmar Settefisk AS, Tjuin",Shield,,4532000.0,,
+6572,2025-09-25,Kansellert,"Salmar Settefisk AS, Tjuin",Shield,,4532000.0,,
+6506,2025-10-01,Prospect,Prospect - Proximar Seafood,Shield,,1030000.0,,Barstadvik
+6562,2025-10-02,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6561,2025-10-02,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+5697,2025-10-05,Kansellert,"SalMar Settefisk AS, Follafoss",Gain,,3296000.0,,
+5939,2025-10-09,Bekreftet,Erko Settefisk AS,Gain,,1081500.0,,Vestseøra
+6593,2025-10-09,Prognose,Polarsmolt AS - Avd. Brenna,Gain,,772500.0,,Bogen
+6548,2025-10-09,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2678000.0,,Vestseøra
+6592,2025-10-09,Prognose,Polarsmolt AS,Gain,,1545000.0,,Vestseøra
+6782,2025-10-09,Bekreftet,Ewos Innovation AS,Shield,,4120.0,,Barstadvik
+6590,2025-10-09,Prognose,"Neptun Salmo AS, avd. Botnan",Shield,,737480.0,,Vestseøra
+6576,2025-10-09,Ubekreftet,SalMar Farming AS,Shield,,3862500.0,,Vestseøra
+6594,2025-10-09,Prognose,Trøndersmolt AS,Shield,,721000.0,,Vestseøra
+6574,2025-10-09,Ubekreftet,"SalMar Settefisk AS, Senja",Shield,,2832500.0,,Vestseøra
+6573,2025-10-15,Ubekreftet,"SalMar Settefisk AS, Senja",Shield,,3090000.0,,Vestseøra
+6254,2025-10-15,Bekreftet,Sisomar AS,Gain,,3244500.0,,Vestseøra
+6768,2025-10-15,Prospect,Ænes Inkubator AS,Gain,,1545000.0,,Barstadvik
+6580,2025-10-16,Prognose,Hardingsmolt AS,Shield,,1236000.0,,Vestseøra
+6575,2025-10-16,Kansellert,"SalMar Settefisk AS, Senja",Shield,,3347500.0,,
+6180,2025-10-22,Prognose,Nordlaks Smolt AS - avd. Mørsvik,Shield,,2163000.0,,Vestseøra
+6147,2025-10-22,Bekreftet,Cermaq Norway - Avd. Veines,Shield,,2884000.0,,Bogen
+6685,2025-10-23,Prognose,Atlantic Sapphire USA LLC,Shield,,535600.0,,Barstadvik
+6557,2025-10-23,Prognose,Lerøy Midt AS - Avd. Lensvik,Gain,,1236000.0,Locked,Hønsvikgulen
+6600,2025-10-29,Ubekreftet,Kjørsvikbugen Settefisk AS,Shield,Organic,1648000.0,,Vestseøra
+6579,2025-10-30,Prognose,Silver Seed AS,Gain,,927000.0,,Vestseøra
+6581,2025-10-30,Prognose,Elvenesstrand Smolt AS,Gain,,927000.0,,Vestseøra
+6588,2025-10-30,Prognose,Femangerlaks AS,Gain,Organic,772500.0,,Vestseøra
+6507,2025-11-03,Prospect,Prospect - Laxey,Shield,,1030000.0,,Barstadvik
+6509,2025-11-03,Prospect,Prospect - Skagen Salmon,Shield,,515000.0,,Barstadvik
+6508,2025-11-03,Prospect,Prospect - Danish Salmon A/S,Shield,,515000.0,,Barstadvik
+6601,2025-11-05,Ubekreftet,Osan Settefisk AS,Shield,,2266000.0,,Kilavågen Land
+6249,2025-11-05,Ubekreftet,Flatanger Settefisk AS,Gain,,2487450.0,,Vestseøra
+6185,2025-11-05,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Shield,,2884000.0,,Bogen
+6167,2025-11-06,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2781000.0,,Bogen
+6176,2025-11-06,Bekreftet,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,2575000.0,,Bogen
+6549,2025-11-06,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Kilavågen Land
+6558,2025-11-06,Prognose,Lerøy Midt AS- Avd Kvernvik,Gain,,772500.0,Locked,Hønsvikgulen
+6916,2025-11-06,Bekreftet,Helgeland Smolt AS - Avd. Sundsfjord,Elite,,309000.0,,Bogen
+6166,2025-11-06,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2781000.0,,Bogen
+5615,2025-11-09,Kansellert,"SalMar Settefisk AS, Follafoss",Shield,Organic,4841000.0,,
+6490,2025-11-11,Bekreftet,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6783,2025-11-12,Bekreftet,Ewos Innovation AS,Shield,,18540.0,,Barstadvik
+6906,2025-11-12,Prognose,Bindalssmolt AS - Avd. Saglifossen,Gain,,1854000.0,,Bogen
+6587,2025-11-13,Prognose,Akvafarm AS - Avd. Skaland,Shield,,875500.0,,Bogen
+6556,2025-11-13,Prognose,Lerøy Midt AS - Avd. Botn,Gain,,463500.0,Locked,Hønsvikgulen
+6566,2025-11-13,Bekreftet,Måsøval Vartdal AS,Gain,,618000.0,,Kilavågen Land
+6555,2025-11-13,Prognose,Lerøy Midt AS - Avd. Botn,Elite,,360500.0,,Vestseøra
+6565,2025-11-13,Prognose,Måsøval Urke AS,Gain,,618000.0,,Kilavågen Land
+6545,2025-11-13,Prognose,Fister Smolt AS,Gain,,1390500.0,,Kilavågen Land
+6586,2025-11-13,Prognose,Akvafarm AS - Avd. Skaland,Shield,Organic,875500.0,,Bogen
+6199,2025-11-18,Bekreftet,Nekton Settefisk AS avd Sagosen,Shield,,900220.0,,Kilavågen Land
+6770,2025-11-19,Prospect,Fjon Bruk AS,Shield,,1030000.0,,Vestseøra
+6577,2025-11-20,Prognose,Damfisk Settefisk AS,Gain,,1339000.0,,Kilavågen Land
+6567,2025-11-20,Bekreftet,Måsøval Åsen AS,Gain,,927000.0,,Kilavågen Land
+6582,2025-11-20,Prognose,Barlindbotn Settefisk AS,Shield,,2575000.0,,Vestseøra
+6161,2025-11-20,Bekreftet,Cermaq Norway - Avd. Hopen,Shield,,1390500.0,,Bogen
+6501,2025-11-27,Prognose,Cermaq Norway - Avd. Holmvåg,Elite,,309000.0,,Vestseøra
+6554,2025-11-27,Prognose,Lerøy Aurora  - avd Lebesby,Gain,,2575000.0,Locked,Hønsvikgulen
+6559,2025-11-27,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6568,2025-11-27,Bekreftet,Måsøval Laksåvika AS,Gain,,360500.0,,Vestseøra
+6173,2025-11-27,Bekreftet,Helgeland Smolt AS - Avd. Reppen,Gain,,3605000.0,,Bogen
+6569,2025-11-27,Bekreftet,Måsøval Laksåvika AS,Elite Sikring,,618000.0,,Vestseøra
+6784,2025-11-27,Bekreftet,Ewos Innovation AS,Shield,,10300.0,,Vestseøra
+6543,2025-12-04,Kansellert,Sisomar AS,Gain,,1287500.0,,Ikke valgt
+6737,2025-12-05,Prognose,"Neptun Salmo AS, avd. Lokkarfisk",Shield,,1153600.0,,Kilavågen Land
+6480,2025-12-10,Ubekreftet,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+6771,2025-12-10,Ubekreftet,Femangerlaks AS,Gain,Organic,1699500.0,,Kilavågen Land
+6583,2025-12-11,Prognose,Gjølanger Settefisk AS,Gain,,1260000.0,,Kilavågen Land
+6564,2025-12-11,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6551,2025-12-11,Bekreftet,Grieg Seafood Rogaland - Avd. Hognaland,Elite Sikring,,700400.0,,Vestseøra
+6563,2025-12-11,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6553,2025-12-11,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,1398740.0,,Kilavågen Land
+6550,2025-12-11,Bekreftet,Grieg Seafood Rogaland - Avd. Hognaland,Gain,,700400.0,,Kilavågen Land
+6500,2025-12-17,Bekreftet,Cermaq Norway - Avd. Holmvåg,Shield,,1493500.0,,Bogen
+6149,2025-12-18,Kansellert,Helgeland Smolt AS - Avd. Reppen,Gain,,2575000.0,,Ikke valgt
+6151,2025-12-18,Prognose,Nordlaks Smolt AS - avd. Nusfjord,Shield,,2575000.0,,Bogen
+6560,2025-12-18,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6591,2025-12-23,Prognose,"Neptun Salmo AS, avd. Botnan",Shield,,1660360.0,,Kilavågen Land
+6736,2026-01-01,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Kilavågen Land
+6202,2026-01-06,Bekreftet,Nekton Settefisk AS avd Sagosen,Shield,,710001.0,,Kilavågen Land
+6193,2026-01-06,Bekreftet,Nekton Settefisk AS,Gain,,920000.0,,Kilavågen Land
+6688,2026-01-07,Prognose,Flatanger Settefisk AS,Gain,,2487450.0,,Kilavågen Land
+6613,2026-01-08,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Shield,,1184500.0,,Bogen
+6612,2026-01-08,Prognose,Nordlaks Smolt AS - avd. Mørsvik,Shield,,1854000.0,,Vestseøra
+6785,2026-01-08,Bekreftet,Ewos Innovation AS,Shield,,18540.0,,Vestseøra
+6712,2026-01-09,Prognose,Lerøy Midt AS - Avd. Botn,Gain,,824000.0,Locked,Hønsvikgulen
+6604,2026-01-09,Prognose,Cermaq Norway - Avd. Holmvåg,Shield,,1339000.0,,Bogen
+6714,2026-01-09,Prognose,Lerøy Midt AS - Avd. Lensvik,Gain,,1236000.0,Locked,Hønsvikgulen
+6697,2026-01-14,Prognose,Olden Oppdrettsanlegg AS,Shield,,1493500.0,,Vestseøra
+6703,2026-01-14,Prognose,Villa Smolt AS,Shield,,1596500.0,,Kilavågen Land
+6614,2026-01-22,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Shield,,1493500.0,,Bogen
+6698,2026-01-23,Prognose,Sande Settefisk AS,Gain,,391400.0,,Barstadvik
+6705,2026-01-30,Prognose,Fister Smolt AS,Gain,,1390500.0,,Kilavågen Land
+6743,2026-02-05,Prognose,Futaklettur P/F,Gain,,1545000.0,,Bogen
+6627,2026-02-05,Prognose,Akvafarm AS - Avd. Skaland,Shield,,875500.0,,Kilavågen Land
+6717,2026-02-05,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6626,2026-02-05,Prognose,Akvafarm AS - Avd. Skaland,Shield,Organic,875500.0,,Kilavågen Land
+6709,2026-02-06,Prognose,Lerøy Aurora  - avd Lebesby,Gain,,2729500.0,Locked,Hønsvikgulen
+6772,2026-02-06,Prognose,Gjølanger Settefisk AS,Gain,,735000.0,,Kilavågen Land
+6745,2026-02-12,Bekreftet,"MOWI Færøyane, Laksà",Gain,,1236000.0,,Barstadvik
+6700,2026-02-12,Prognose,Trøndersmolt AS,Shield,,721000.0,,Kilavågen Land
+6464,2026-02-18,Kansellert,Cermaq Norway - Avd. Veines,Shield,,927000.0,,Bogen
+6689,2026-02-19,Prognose,Flatanger Settefisk AS,Gain,,1854000.0,,Vestseøra
+6695,2026-02-19,Prognose,"Neptun Salmo AS, avd. Lokkarfisk",Shield,,592250.0,,Kilavågen Land
+6605,2026-02-19,Prognose,Cermaq Norway - Avd. Hopen,Shield,,1699500.0,,Bogen
+6716,2026-02-20,Prognose,Lerøy Midt AS- Avd Kvernvik,Gain,,978500.0,Locked,Hønsvikgulen
+6720,2026-02-20,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6721,2026-02-20,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6615,2026-02-26,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Shield,,1236000.0,,Bogen
+6694,2026-03-04,Prognose,Måsøval Åsen AS,Gain,,1854000.0,,Kilavågen Land
+6696,2026-03-04,Prognose,"Neptun Salmo AS, avd. Botnan",Shield,,1199950.0,,Kilavågen Land
+6607,2026-03-05,Prognose,Cermaq Norway - Avd. Forsan,Shield,,1699500.0,,Bogen
+6606,2026-03-05,Prognose,Cermaq Norway - Avd. Forsan,Shield,,1699500.0,,Bogen
+6725,2026-03-06,Prognose,Grieg Seafood Rogaland - Avd. Hognaland,Elite Sikring,,412000.0,,Vestseøra
+6724,2026-03-06,Prognose,Erko Settefisk AS,Gain,,2678000.0,,Kilavågen Land
+6690,2026-03-11,Prognose,Måsøval Laksåvika AS,Gain,,618000.0,,Vestseøra
+6691,2026-03-11,Prognose,Måsøval Laksåvika AS,Elite Sikring,,618000.0,,Vestseøra
+6741,2026-03-12,Prognose,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+6713,2026-03-13,Prognose,Lerøy Midt AS - Avd. Botn,Gain,,824000.0,Locked,Hønsvikgulen
+6718,2026-03-14,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6623,2026-03-19,Prognose,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,4635000.0,,Bogen
+6616,2026-03-19,Prognose,Nordlaks Smolt AS - avd. Mørsvik,Shield,,1854000.0,,Bogen
+6618,2026-03-20,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Elite Sikring,,206000.0,,Vestseøra
+6728,2026-03-20,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,412000.0,,Vestseøra
+6727,2026-03-20,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Elite Sikring,,957900.0,,Vestseøra
+6617,2026-03-20,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Elite,,463500.0,,Vestseøra
+6203,2026-03-24,Bekreftet,Nekton Settefisk AS avd Sagosen,Shield,,680006.0,,Vestseøra
+6704,2026-03-25,Prognose,Villa Smolt AS,Shield,,1596500.0,,Barstadvik
+6622,2026-03-26,Prognose,Helgeland Smolt AS - Avd. Reppen,Gain,,4429000.0,,Bogen
+6630,2026-03-26,Prognose,Polarsmolt AS,Gain,,1030000.0,,Vestseøra
+6734,2026-03-27,Prognose,Lerøy Midt AS - Avd. Botn,Elite Sikring,,927000.0,,Vestseøra
+6733,2026-03-27,Prognose,Lerøy Midt AS - Avd. Botn,Elite,,257500.0,,Vestseøra
+6715,2026-04-03,Prognose,Lerøy Midt AS - Avd. Lensvik,Gain,,1236000.0,Locked,Hønsvikgulen
+6710,2026-04-03,Prognose,Lerøy Aurora  - avd Lebesby,Gain,,2214500.0,Locked,Hønsvikgulen
+6693,2026-04-08,Prognose,Måsøval Vartdal AS,Gain,,566500.0,,Barstadvik
+6739,2026-04-08,Bekreftet,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+6692,2026-04-08,Prognose,Måsøval Urke AS,Gain,,515000.0,,Barstadvik
+6608,2026-04-09,Prognose,Cermaq Norway - Avd. Holmvåg,Shield,,1493500.0,,Bogen
+6195,2026-04-14,Bekreftet,Nekton Settefisk AS,Gain,,1800001.0,,Vestseøra
+6701,2026-04-15,Prognose,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6731,2026-04-17,Prognose,Hardingsmolt AS,Shield,,1236000.0,,Kilavågen Land
+6707,2026-04-17,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,1030000.0,,Kilavågen Land
+6735,2026-04-17,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,870350.0,Locked,Hønsvikgulen
+6466,2026-04-22,Prognose,Cermaq Norway - Avd. Veines,Shield,,2781000.0,,Bogen
+6746,2026-04-23,Prognose,Salmon Evolution Dale AS,Gain,,618000.0,,Barstadvik
+6619,2026-04-23,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Shield,,1493500.0,,Bogen
+6706,2026-04-24,Prognose,Fister Smolt AS,Gain,,1390500.0,,Kilavågen Land
+6708,2026-04-29,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,1030000.0,,Kilavågen Land
+6744,2026-04-30,Prognose,Futaklettur P/F,Gain,,1545000.0,,Bogen
+6722,2026-05-01,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6723,2026-05-01,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6629,2026-05-07,Prognose,Silver Seed AS,Gain,,1442000.0,,Bogen
+6726,2026-05-08,Prognose,Grieg Seafood Rogaland - Avd. Hognaland,Elite Sikring,,1236000.0,,Vestseøra
+6738,2026-05-15,Prognose,Neptun Salmo AS,Shield,,737480.0,,Vestseøra
+6730,2026-05-22,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,412000.0,,Vestseøra
+6729,2026-05-22,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Elite Sikring,,957900.0,,Vestseøra
+6740,2026-05-27,Prognose,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+6719,2026-05-29,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6732,2026-05-29,Prognose,Lerøy Aurora  - avd Lebesby,Elite,,309000.0,,Vestseøra
+6711,2026-05-29,Prognose,Lerøy Aurora  - avd Lebesby,Gain,,2575000.0,Locked,Hønsvikgulen
+6467,2026-06-10,Prognose,Cermaq Norway - Avd. Veines,Shield,,2781000.0,,Bogen
+6742,2026-06-11,Prognose,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+6609,2026-06-11,Prognose,Cermaq Norway - Avd. Forsan,Elite,,309000.0,,Vestseøra
+6621,2026-06-17,Bekreftet,Nordlaks Smolt AS - Avd. Innhavet,Shield,,3337200.0,,Bogen
+6624,2026-06-17,Prognose,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,4635000.0,,Bogen
+6620,2026-06-18,Prognose,Nordlaks Smolt AS - avd. Mørsvik,Shield,,1957000.0,,Vestseøra
+6625,2026-06-24,Prognose,Helgeland Smolt AS - Avd. Reppen,Gain,,3605000.0,,Bogen
+6702,2026-06-24,Prognose,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6699,2026-06-24,Prognose,Sande Settefisk AS,Gain,,566500.0,,Vestseøra
+6611,2026-06-25,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2884000.0,,Bogen
+6610,2026-06-25,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2884000.0,,Bogen
+6747,2026-06-25,Prognose,"SalMar Settefisk AS, Follafoss",Shield,Organic,3399000.0,,Barstadvik
+6798,2026-07-01,Prognose,"SalMar Settefisk AS, Senja",Shield,,2832500.0,,Bogen
+6825,2026-07-01,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Vestseøra
+6826,2026-07-01,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Barstadvik
+6799,2026-07-01,Prognose,"SalMar Settefisk AS, Senja",Shield,,3090000.0,,Bogen
+6860,2026-07-08,Prognose,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,4635000.0,,Bogen
+6827,2026-07-15,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,618000.0,,Vestseøra
+6812,2026-07-15,Prognose,Erko Settefisk AS,Gain,,1081500.0,,Barstadvik
+6858,2026-07-15,Prognose,Helgeland Smolt AS - Avd. Reppen,Gain,,3605000.0,,Bogen
+6894,2026-07-15,Prognose,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+6801,2026-07-15,Prognose,"SalMar Settefisk AS, Follafoss",Shield,,3296000.0,,Bogen
+6800,2026-07-15,Prognose,"Salmar Settefisk AS, Tjuin",Shield,,4377500.0,,Bogen
+6802,2026-07-15,Prognose,Kjørsvikbugen Settefisk AS,Shield,Organic,1648000.0,,Bogen
+6821,2026-07-22,Prognose,Fister Smolt AS,Gain,,1390500.0,,Vestseøra
+6803,2026-07-22,Prognose,"SalMar Settefisk AS, Senja",Shield,,3090000.0,,Bogen
+6882,2026-07-29,Prognose,"Neptun Salmo AS, avd. Botnan",Shield,,737480.0,,Vestseøra
+6468,2026-08-05,Prognose,Cermaq Norway - Avd. Veines,Shield,,2781000.0,,Bogen
+6854,2026-08-05,Prognose,Cermaq Norway - Avd. Holmvåg,Shield,,1493500.0,,Bogen
+6194,2026-08-11,Bekreftet,Nekton Settefisk AS,Gain,,1800001.0,,Vestseøra
+6832,2026-08-12,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,721000.0,,Vestseøra
+6811,2026-08-19,Prospect,Eide Fjordbruk AS,Gain,,1030000.0,,Vestseøra
+6868,2026-08-19,Prognose,Silver Seed AS,Gain,,,,Bogen
+6814,2026-08-19,Prognose,Ewos Innovation AS,Shield,,22660.0,,Barstadvik
+6864,2026-08-26,Prognose,Nordlaks Smolt AS - avd. Nusfjord,Shield,,618000.0,,Bogen
+6895,2026-09-02,Prognose,Atlantic Sapphire USA LLC,Shield,,412000.0,,Barstadvik
+6892,2026-09-02,Prognose,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6815,2026-09-02,Prognose,Ewos Innovation AS,Shield,,18540.0,,Barstadvik
+6900,2026-09-09,Prognose,Futaklettur P/F,Gain,,1545000.0,,Bogen
+6847,2026-09-09,Prognose,Akvafarm AS - Avd. Skaland,Shield,Organic,1030000.0,,Bogen
+6848,2026-09-09,Prognose,Akvafarm AS - Avd. Skaland,Shield,,721000.0,,Bogen
+6897,2026-09-16,Prognose,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+6905,2026-09-17,Prognose,Scottish Sea Farms Ltd.,Gain,,1648000.0,,Barstadvik
+6844,2026-09-30,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6842,2026-09-30,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6843,2026-09-30,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6899,2026-10-01,Prospect,Bakkafrost Farming P/F,Gain,,3090000.0,,Barstadvik
+6901,2026-10-01,Prospect,Prospect - Proximar Seafood,Shield,,1030000.0,,Barstadvik
+6891,2026-10-07,Prognose,Trøndersmolt AS,Shield,,721000.0,,Vestseøra
+6828,2026-10-07,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2678000.0,,Vestseøra
+6866,2026-10-07,Prognose,Polarsmolt AS,Gain,,1545000.0,,Vestseøra
+6884,2026-10-07,Prognose,"Neptun Salmo AS, avd. Botnan",Shield,,737480.0,,Vestseøra
+6867,2026-10-07,Prognose,Polarsmolt AS - Avd. Brenna,Gain,,772500.0,,Vestseøra
+6813,2026-10-07,Prognose,Erko Settefisk AS,Gain,,1081500.0,,Vestseøra
+6816,2026-10-07,Prognose,Ewos Innovation AS,Shield,,4120.0,,
+6805,2026-10-07,Prognose,"SalMar Settefisk AS, Senja",Shield,,2832500.0,,Bogen
+6804,2026-10-07,Prognose,SalMar Farming AS,Shield,,3862500.0,,Bogen
+6846,2026-10-14,Prospect,Ænes Inkubator AS,Gain,,1545000.0,,Bogen
+6469,2026-10-14,Prognose,Cermaq Norway - Avd. Veines,Shield,,2781000.0,,Bogen
+6870,2026-10-14,Prognose,Sisomar AS,Gain,,3244500.0,,Vestseøra
+6834,2026-10-14,Prognose,Hardingsmolt AS,Shield,,1236000.0,,Vestseøra
+6806,2026-10-14,Prognose,"SalMar Settefisk AS, Senja",Shield,,3090000.0,,Bogen
+6863,2026-10-21,Prognose,Nordlaks Smolt AS - avd. Mørsvik,Shield,,2163000.0,,Vestseøra
+6838,2026-10-21,Prognose,Lerøy Midt AS - Avd. Lensvik,Gain,,1236000.0,Locked,Hønsvikgulen
+6896,2026-10-21,Prognose,Atlantic Sapphire USA LLC,Shield,,535600.0,,Barstadvik
+6819,2026-10-28,Prognose,Femangerlaks AS,Gain,Organic,772500.0,,Vestseøra
+6869,2026-10-28,Prognose,Silver Seed AS,Gain,,927000.0,,Vestseøra
+6807,2026-10-28,Prognose,Kjørsvikbugen Settefisk AS,Shield,Organic,1648000.0,,Bogen
+6857,2026-10-28,Prognose,Elvenesstrand Smolt AS,Gain,,927000.0,,Vestseøra
+6861,2026-11-04,Prognose,Helgeland Smolt AS - Avd. Sundsfjord,Gain,,2884000.0,,Bogen
+6829,2026-11-04,Prognose,Grieg Seafood Finnmark AS - Avd. Adamselv,Gain,,2060000.0,,Kilavågen Land
+6839,2026-11-04,Prognose,Lerøy Midt AS- Avd Kvernvik,Gain,,772500.0,Locked,Hønsvikgulen
+6903,2026-11-04,Prospect,Prospect - Danish Salmon A/S,Shield,,515000.0,,Barstadvik
+6902,2026-11-04,Prospect,Prospect - Laxey,Shield,,1030000.0,,Barstadvik
+6852,2026-11-04,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2781000.0,,Bogen
+6904,2026-11-04,Prospect,Prospect - Skagen Salmon,Shield,,515000.0,,Barstadvik
+6808,2026-11-04,Prognose,"SalMar Settefisk AS, Follafoss",Shield,Organic,4841000.0,,Bogen
+6809,2026-11-04,Prognose,Osan Settefisk AS,Shield,,2266000.0,,Bogen
+6862,2026-11-04,Prognose,Nordlaks Smolt AS - Avd. Innhavet,Shield,,2884000.0,,Bogen
+6851,2026-11-04,Prognose,Cermaq Norway - Avd. Forsan,Shield,,2781000.0,,Bogen
+6872,2026-11-05,Prognose,Flatanger Settefisk AS,Gain,,2487450.0,,Vestseøra
+6893,2026-11-11,Prognose,Vikan Settefisk AS,Gain,,721000.0,,Vestseøra
+6849,2026-11-11,Prognose,Akvafarm AS - Avd. Skaland,Shield,Organic,875500.0,,Bogen
+6817,2026-11-11,Prognose,Ewos Innovation AS,Shield,,18540.0,,Barstadvik
+6879,2026-11-11,Prognose,Måsøval Vartdal AS,Gain,,618000.0,,Kilavågen Land
+6836,2026-11-11,Prognose,Lerøy Midt AS - Avd. Botn,Elite,,360500.0,,Vestseøra
+6822,2026-11-11,Prognose,Fister Smolt AS,Gain,,1390500.0,,Kilavågen Land
+6850,2026-11-11,Prognose,Akvafarm AS - Avd. Skaland,Shield,,875500.0,,Bogen
+6878,2026-11-11,Prognose,Måsøval Urke AS,Gain,,618000.0,,Kilavågen Land
+6907,2026-11-12,Prognose,Bindalssmolt AS - Avd. Saglifossen,Gain,,1854000.0,,Bogen
+6837,2026-11-13,Prognose,Lerøy Midt AS - Avd. Botn,Gain,,463500.0,Locked,Hønsvikgulen
+6881,2026-11-18,Prognose,Nekton Settefisk AS avd Sagosen,Shield,,900220.0,,Kilavågen Land
+6880,2026-11-18,Prognose,Måsøval Åsen AS,Gain,,927000.0,,Kilavågen Land
+6856,2026-11-18,Prognose,Cermaq Norway - Avd. Hopen,Shield,,1390500.0,,Bogen
+6810,2026-11-18,Prognose,Barlindbotn Settefisk AS,Shield,,2575000.0,,Vestseøra
+6823,2026-11-18,Prospect,Fjon Bruk AS,Shield,,1030000.0,,Vestseøra
+6470,2026-11-18,Prognose,Cermaq Norway - Avd. Veines,Shield,,1854000.0,,Bogen
+6853,2026-11-25,Prognose,Cermaq Norway - Avd. Holmvåg,Elite,,309000.0,,Vestseøra
+6877,2026-11-25,Prognose,Måsøval Laksåvika AS,Elite Sikring,,618000.0,,Vestseøra
+6876,2026-11-25,Prognose,Måsøval Laksåvika AS,Gain,,360500.0,,Vestseøra
+6840,2026-11-25,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6859,2026-11-25,Prognose,Helgeland Smolt AS - Avd. Reppen,Gain,,3605000.0,,Bogen
+6818,2026-11-27,Prognose,Ewos Innovation AS,Shield,,10300.0,,Kilavågen Land
+6835,2026-11-27,Prognose,Lerøy Aurora  - avd Lebesby,Gain,,2575000.0,Locked,Hønsvikgulen
+6886,2026-12-02,Prognose,"Neptun Salmo AS, avd. Lokkarfisk",Shield,,1153600.0,,Kilavågen Land
+6898,2026-12-09,Prognose,Bakkafrost Farming P/F,Gain,,1751000.0,,Barstadvik
+6845,2026-12-09,Prognose,Lerøy Sjøtroll Kjærelva AS,Gain,,1236000.0,Locked,Hønsvikgulen
+6833,2026-12-09,Prognose,Grieg Seafood Rogaland - Avd. Trosnavåg,Gain,,1398740.0,,Kilavågen Land
+6830,2026-12-09,Prognose,Grieg Seafood Rogaland - Avd. Hognaland,Gain,,700400.0,,Kilavågen Land
+6831,2026-12-09,Prognose,Grieg Seafood Rogaland - Avd. Hognaland,Elite Sikring,,700400.0,,Vestseøra
+6820,2026-12-09,Prognose,Femangerlaks AS,Gain,Organic,1699500.0,,Kilavågen Land
+6824,2026-12-09,Prognose,Gjølanger Settefisk AS,Gain,,1260000.0,,Kilavågen Land
+6865,2026-12-16,Prognose,Nordlaks Smolt AS - avd. Nusfjord,Shield,,2575000.0,,Bogen
+6855,2026-12-16,Prognose,Cermaq Norway - Avd. Holmvåg,Shield,,1493500.0,,Bogen
+6841,2026-12-16,Prognose,"Lerøy Midt AS, avd. Belsvik",Gain,,1740700.0,Locked,Hønsvikgulen
+6885,2026-12-23,Prognose,"Neptun Salmo AS, avd. Botnan",Shield,,1660360.0,,Kilavågen Land
