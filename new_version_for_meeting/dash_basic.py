@@ -6,44 +6,101 @@ import pandas as pd
 import plotly.express as px
 import pulp as pl
 
-# Initialize the Dash app with a Bootstrap theme
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.FLATLY])
 
-# Adjusted default data for orders with more deliverable orders
+# --------------------------------------------------------------------------------
+# EXAMPLE DATA: FIFO + Shield→Gain
+# --------------------------------------------------------------------------------
+
 default_orders = pd.DataFrame({
-    'OrderNr': ['O001', 'O002', 'O003', 'O004', 'O005', 'O006', 'O007'],
-    'DeliveryDate': ['2024-08-15', '2024-09-01', '2024-10-01', '2024-09-25', '2024-08-20', '2024-09-05', '2024-11-01'],
-    'OrderStatus': ['Bekreftet', 'Bekreftet', 'Bekreftet', 'Kansellert', 'Bekreftet', 'Bekreftet', 'Bekreftet'],
-    'CustomerName': ['AquaGen AS', 'NTNU', 'SalMar Farming AS', 'Ewos Innovation AS', 'Lerøy Midt AS', 'Marine Harvest', 'Cermaq'],
-    'Product': ['Gain', 'Gain', 'Shield', 'Shield', 'Gain', 'Shield', 'Gain'],
-    'Organic': [False, True, False, False, False, False, True],
-    'Volume': [500000, 300000, 400000, 200000, 600000, 250000, 350000],
-    'LockedSite': [None, None, None, None, 'Hønsvikgulen', None, None],
-    'PreferredSite': ['Vestseøra', 'Bogen', 'Kilavågen Land', None, None, 'Vestseøra', 'Kilavågen Land']
+    'OrderNr': ['O001', 'O002', 'O003', 'O004', 'O005', 'O006', 'O007', 'O008', 'O009'],
+    'DeliveryDate': [
+        '2024-08-15',  # Gains
+        '2024-09-01',  # Gains
+        '2024-10-01',  # Shield
+        '2024-09-25',  # Shield (Kansellert)
+        '2024-08-20',  # Gains (Locked to Hønsvikgulen)
+        '2024-09-05',  # Shield
+        '2024-11-01',  # Gains
+        '2024-08-25',  # Large Shield
+        '2024-09-05'   # Even larger Shield
+    ],
+    'OrderStatus': [
+        'Bekreftet', 'Bekreftet', 'Bekreftet', 'Kansellert',
+        'Bekreftet', 'Bekreftet', 'Bekreftet', 'Bekreftet', 'Bekreftet'
+    ],
+    'CustomerName': [
+        'AquaGen AS', 'NTNU', 'SalMar Farming AS', 'Ewos Innovation AS',
+        'Lerøy Midt AS', 'Marine Harvest', 'Cermaq', 'New Shield Customer', 'Mixed Farming AS'
+    ],
+    'Product': [
+        'Gain', 'Gain', 'Shield', 'Shield',
+        'Gain', 'Shield', 'Gain', 'Shield', 'Shield'
+    ],
+    'Organic': [
+        False, True, False, False,
+        False, False, True, False, False
+    ],
+    'Volume': [
+        500000, 300000, 400000, 200000,
+        600000, 250000, 350000, 1000000, 1500000
+    ],
+    'LockedSite': [
+        None, None, None, None,
+        'Hønsvikgulen', None, None, None, None
+    ],
+    'PreferredSite': [
+        'Vestseøra', 'Bogen', 'Kilavågen Land', None,
+        None, 'Vestseøra', 'Kilavågen Land', None, None
+    ]
 })
 
-# Default data for fish groups
 default_fish_groups = pd.DataFrame({
     'Site': ['Vestseøra', 'Kilavågen Land', 'Bogen', 'Hønsvikgulen'],
     'StrippingStartDate': ['2024-08-05', '2024-09-26', '2024-08-05', '2024-07-16'],
-    'StrippingStopDate': ['2024-09-02', '2024-11-21', '2024-09-09', '2024-08-27'],
-    'Gain-eggs': [7996198, 16451359, 8728493, 16600150],
-    'Shield-eggs': [7996198, 16451359, 8728493, 0],
-    'Organic': [True, False, True, False]
+    'StrippingStopDate':  ['2024-09-02', '2024-11-21', '2024-09-09', '2024-08-27'],
+    # Enough Gains/Shield to force interesting allocations
+    'Gain-eggs':   [7996198, 16451359, 1200000, 1500000],
+    'Shield-eggs': [7996198, 16451359, 200000, 0],
+    'Organic':     [True, False, True, False]
 })
 
-# Solver function with corrected temporal constraint
+# --------------------------------------------------------------------------------
+# SOLVER FUNCTION
+# --------------------------------------------------------------------------------
+
 def solve_egg_allocation(orders, fish_groups):
+    """
+    Solver implementing:
+      1) FIFO: small penalty for using fish groups with a later StrippingStopDate
+      2) Shield→Gain: a Shield order can also use leftover Gains capacity.
+    
+    CONSTRAINTS:
+      - Each non-cancelled order assigned exactly once (to real site or Dummy).
+      - Gains orders can only use Gains capacity at a site.
+      - Shield orders can use Gains + Shield capacity combined.
+      - If an order is Organic, it can only be assigned to an Organic site or Dummy.
+      - If an order is locked to a site, it must go there or Dummy.
+      - Preferred site mismatch => small penalty (soft constraint).
+      - Dummy usage => large penalty (to avoid dummy if feasible).
+      - If the order date is outside the site’s [Start, Stop], the order cannot go there.
+      - FIFO => small penalty if using “later” stop-date groups first.
+    """
     # Convert dates to datetime
     orders['DeliveryDate'] = pd.to_datetime(orders['DeliveryDate'])
     fish_groups['StrippingStartDate'] = pd.to_datetime(fish_groups['StrippingStartDate'])
     fish_groups['StrippingStopDate'] = pd.to_datetime(fish_groups['StrippingStopDate'])
     
-    # Filter out cancelled orders
+    # Convert numeric columns
+    orders['Volume'] = pd.to_numeric(orders['Volume'], errors='coerce').fillna(0)
+    fish_groups['Gain-eggs'] = pd.to_numeric(fish_groups['Gain-eggs'], errors='coerce').fillna(0)
+    fish_groups['Shield-eggs'] = pd.to_numeric(fish_groups['Shield-eggs'], errors='coerce').fillna(0)
+    
+    # Filter out cancelled
     active_orders = orders[orders['OrderStatus'] != 'Kansellert'].copy().reset_index(drop=True)
     
-    # Add dummy fish group
-    dummy_group = pd.DataFrame({
+    # Add dummy site
+    dummy_df = pd.DataFrame({
         'Site': ['Dummy'],
         'StrippingStartDate': [pd.to_datetime('2024-01-01')],
         'StrippingStopDate': [pd.to_datetime('2024-12-31')],
@@ -51,197 +108,227 @@ def solve_egg_allocation(orders, fish_groups):
         'Shield-eggs': [float('inf')],
         'Organic': [True]
     })
-    
     fish_groups_reset = fish_groups.reset_index(drop=True)
-    all_fish_groups = pd.concat([fish_groups_reset, dummy_group], ignore_index=True)
-    dummy_site_idx = all_fish_groups.index[all_fish_groups['Site'] == 'Dummy'].tolist()[0]
+    all_fish_groups = pd.concat([fish_groups_reset, dummy_df], ignore_index=True)
+    dummy_idx = all_fish_groups.index[all_fish_groups['Site'] == 'Dummy'].tolist()[0]
     
-    # Create the PuLP problem
+    # Create problem
     prob = pl.LpProblem("FishEggAllocation", pl.LpMinimize)
     
     # Decision variables
     x = {}
     for i in active_orders.index:
         for j in all_fish_groups.index:
-            x[i, j] = pl.LpVariable(f"assign_{i}_{j}", cat='Binary')
+            x[i, j] = pl.LpVariable(f"x_{i}_{j}", cat='Binary')
     
-    # Penalty variables
-    dummy_penalties = {i: pl.LpVariable(f"dummy_penalty_{i}", lowBound=0) for i in active_orders.index}
-    pref_site_penalties = {}
-    for i, order in active_orders.iterrows():
-        if pd.notna(order['PreferredSite']):
-            pref_site_penalties[i] = pl.LpVariable(f"pref_site_penalty_{i}", lowBound=0)
+    # Penalties
+    dummy_penalty = {i: pl.LpVariable(f"dummy_penalty_{i}", lowBound=0) for i in active_orders.index}
+    pref_penalty = {}
+    for i, row in active_orders.iterrows():
+        if pd.notna(row['PreferredSite']):
+            pref_penalty[i] = pl.LpVariable(f"pref_penalty_{i}", lowBound=0)
     
-    # Objective function
-    prob += (1000 * pl.lpSum(dummy_penalties.values()) +
-             10 * pl.lpSum(pref_site_penalties.values()))
+    # FIFO penalty setup
+    real_groups = all_fish_groups[all_fish_groups['Site'] != 'Dummy']
+    earliest_stop = real_groups['StrippingStopDate'].min()
+    group_penalty = {}
+    for j in all_fish_groups.index:
+        if all_fish_groups.loc[j, 'Site'] != 'Dummy':
+            delta = (all_fish_groups.loc[j, 'StrippingStopDate'] - earliest_stop).days
+            group_penalty[j] = float(delta)
+        else:
+            group_penalty[j] = 0.0
+    fifo_weight = 0.01
     
-    # Each order must be assigned to exactly one group
+    # Objective
+    prob += (
+        1000 * pl.lpSum(dummy_penalty.values())
+        + 10 * pl.lpSum(pref_penalty.values())
+        + pl.lpSum(x[i, j] * group_penalty[j] * fifo_weight
+                   for i in active_orders.index
+                   for j in all_fish_groups.index)
+    )
+    
+    # 1) Each order assigned exactly once
     for i in active_orders.index:
         prob += pl.lpSum(x[i, j] for j in all_fish_groups.index) == 1
     
-    # Capacity constraints
+    # Gains vs Shield capacity
+    gain_orders = [i for i in active_orders.index if active_orders.loc[i, 'Product'] == 'Gain']
+    shield_orders = [i for i in active_orders.index if active_orders.loc[i, 'Product'] == 'Shield']
+    
     for j in all_fish_groups.index:
         if all_fish_groups.loc[j, 'Site'] != 'Dummy':
+            Gcap = all_fish_groups.loc[j, 'Gain-eggs']
+            Scap = all_fish_groups.loc[j, 'Shield-eggs']
+            # Gains usage <= Gains capacity
             prob += pl.lpSum(
-                x[i, j] * active_orders.loc[i, 'Volume'] 
-                for i in active_orders.index if active_orders.loc[i, 'Product'] == 'Gain'
-            ) <= all_fish_groups.loc[j, 'Gain-eggs']
+                x[i, j] * active_orders.loc[i, 'Volume']
+                for i in gain_orders
+            ) <= Gcap
+            # Gains + Shield usage <= Gains + Shield capacity
             prob += pl.lpSum(
-                x[i, j] * active_orders.loc[i, 'Volume'] 
-                for i in active_orders.index if active_orders.loc[i, 'Product'] == 'Shield'
-            ) <= all_fish_groups.loc[j, 'Shield-eggs']
+                x[i, j] * active_orders.loc[i, 'Volume']
+                for i in (gain_orders + shield_orders)
+            ) <= (Gcap + Scap)
     
-    # Organic requirement
+    # 3) Organic requirement
     for i in active_orders.index:
         if active_orders.loc[i, 'Organic']:
             for j in all_fish_groups.index:
-                if not all_fish_groups.loc[j, 'Organic'] and all_fish_groups.loc[j, 'Site'] != 'Dummy':
+                if (not all_fish_groups.loc[j, 'Organic']) and (all_fish_groups.loc[j, 'Site'] != 'Dummy'):
                     prob += x[i, j] == 0
     
-    # Locked site requirement
+    # 4) Locked site requirement
     for i in active_orders.index:
-        if pd.notna(active_orders.loc[i, 'LockedSite']):
-            locked_site = active_orders.loc[i, 'LockedSite']
+        locked_site = active_orders.loc[i, 'LockedSite']
+        if pd.notna(locked_site):
             for j in all_fish_groups.index:
-                if all_fish_groups.loc[j, 'Site'] != locked_site and all_fish_groups.loc[j, 'Site'] != 'Dummy':
+                if (all_fish_groups.loc[j, 'Site'] != locked_site) and (all_fish_groups.loc[j, 'Site'] != 'Dummy'):
                     prob += x[i, j] == 0
     
-    # Dummy penalties
+    # 5) Dummy penalty
     for i in active_orders.index:
-        prob += dummy_penalties[i] >= x[i, dummy_site_idx]
+        prob += dummy_penalty[i] >= x[i, dummy_idx]
     
-    # Preferred site penalties
+    # 6) Preferred site penalty
     for i in active_orders.index:
-        if pd.notna(active_orders.loc[i, 'PreferredSite']):
+        if i in pref_penalty:
             pref_site = active_orders.loc[i, 'PreferredSite']
-            non_pref_sites = [j for j in all_fish_groups.index 
-                              if all_fish_groups.loc[j, 'Site'] != pref_site and all_fish_groups.loc[j, 'Site'] != 'Dummy']
-            if non_pref_sites:
-                prob += pref_site_penalties[i] >= pl.lpSum(x[i, j] for j in non_pref_sites)
+            not_pref = [jj for jj in all_fish_groups.index
+                        if (all_fish_groups.loc[jj, 'Site'] != pref_site) and (all_fish_groups.loc[jj, 'Site'] != 'Dummy')]
+            prob += pref_penalty[i] >= pl.lpSum(x[i, jj] for jj in not_pref)
     
-    # Corrected temporal constraint: Delivery date must be within stripping window
+    # 7) Date constraint
     for i in active_orders.index:
-        delivery_date = active_orders.loc[i, 'DeliveryDate']
+        ddate = active_orders.loc[i, 'DeliveryDate']
         for j in all_fish_groups.index:
             if all_fish_groups.loc[j, 'Site'] != 'Dummy':
-                stripping_start_date = all_fish_groups.loc[j, 'StrippingStartDate']
-                stripping_stop_date = all_fish_groups.loc[j, 'StrippingStopDate']
-                if delivery_date < stripping_start_date or delivery_date > stripping_stop_date:
+                start = all_fish_groups.loc[j, 'StrippingStartDate']
+                stop = all_fish_groups.loc[j, 'StrippingStopDate']
+                if ddate < start or ddate > stop:
                     prob += x[i, j] == 0
     
-    # Solve the problem
+    # Write LP for debugging
+    prob.writeLP("fish_egg_allocation.lp")
     prob.solve()
+    solver_status = pl.LpStatus[prob.status]
     
-    # Extract results
+    # Extract solution
     results = active_orders.copy()
     results['AssignedGroup'] = None
     results['IsDummy'] = False
     for i in results.index:
         for j in all_fish_groups.index:
             if pl.value(x[i, j]) == 1:
-                results.loc[i, 'AssignedGroup'] = all_fish_groups.loc[j, 'Site']
-                results.loc[i, 'IsDummy'] = (all_fish_groups.loc[j, 'Site'] == 'Dummy')
+                group_site = all_fish_groups.loc[j, 'Site']
+                results.loc[i, 'AssignedGroup'] = group_site
+                results.loc[i, 'IsDummy'] = (group_site == 'Dummy')
                 break
     
-    # Combine with original orders to include cancelled ones
-    all_results = orders.copy()
-    all_results['AssignedGroup'] = None
-    all_results['IsDummy'] = False
+    # Combine with original (to include cancelled)
+    all_res = orders.copy()
+    all_res['AssignedGroup'] = None
+    all_res['IsDummy'] = False
     for i, row in results.iterrows():
-        orig_idx = all_results.index[all_results['OrderNr'] == row['OrderNr']]
-        if len(orig_idx) > 0:
-            all_results.loc[orig_idx[0], 'AssignedGroup'] = row['AssignedGroup']
-            all_results.loc[orig_idx[0], 'IsDummy'] = row['IsDummy']
+        idx = all_res.index[all_res['OrderNr'] == row['OrderNr']]
+        if len(idx) > 0:
+            all_res.loc[idx[0], 'AssignedGroup'] = row['AssignedGroup']
+            all_res.loc[idx[0], 'IsDummy'] = row['IsDummy']
     
-    # Mark cancelled orders
-    cancelled_idx = all_results[all_results['OrderStatus'] == 'Kansellert'].index
-    all_results.loc[cancelled_idx, 'AssignedGroup'] = 'Skipped-Cancelled'
-    all_results.loc[cancelled_idx, 'IsDummy'] = False
+    # Mark cancelled as "Skipped-Cancelled"
+    cancelled_idx = all_res[all_res['OrderStatus'] == 'Kansellert'].index
+    all_res.loc[cancelled_idx, 'AssignedGroup'] = 'Skipped-Cancelled'
+    all_res.loc[cancelled_idx, 'IsDummy'] = False
     
-    # Calculate remaining capacity
-    remaining = fish_groups.copy()
-    remaining['Gain-eggs-used'] = 0
-    remaining['Shield-eggs-used'] = 0
-    for j, group in fish_groups.iterrows():
-        site = group['Site']
-        gain_used = all_results[(all_results['AssignedGroup'] == site) & (all_results['Product'] == 'Gain')]['Volume'].sum()
-        shield_used = all_results[(all_results['AssignedGroup'] == site) & (all_results['Product'] == 'Shield')]['Volume'].sum()
-        remaining.loc[j, 'Gain-eggs-used'] = gain_used
-        remaining.loc[j, 'Shield-eggs-used'] = shield_used
-        remaining.loc[j, 'Gain-eggs-remaining'] = group['Gain-eggs'] - gain_used
-        remaining.loc[j, 'Shield-eggs-remaining'] = group['Shield-eggs'] - shield_used
+    # ------------------------------------------------------------------------------
+    # APPROACH A: Merge Gains + Shield in final reporting (Total eggs).
+    # ------------------------------------------------------------------------------
+    capacity = fish_groups.copy()
+    capacity['TotalEggs'] = capacity['Gain-eggs'] + capacity['Shield-eggs']
+    
+    # Calculate total usage at each site (both Gains + Shield)
+    total_used = []
+    for j, grp in capacity.iterrows():
+        site_name = grp['Site']
+        used_here = all_res[all_res['AssignedGroup'] == site_name]['Volume'].sum()
+        total_used.append(used_here)
+    capacity['TotalEggsUsed'] = total_used
+    capacity['TotalEggsRemaining'] = capacity['TotalEggs'] - capacity['TotalEggsUsed']
+    
+    # We keep only the merged columns (no Gains-eggs-remaining or Shield-eggs-remaining)
+    # for clarity and to avoid negative leftover in separate columns.
+    final_capacity = capacity[[
+        'Site', 'StrippingStartDate', 'StrippingStopDate',
+        'TotalEggs', 'Organic', 'TotalEggsUsed', 'TotalEggsRemaining'
+    ]]
     
     return {
-        'status': pl.LpStatus[prob.status],
-        'results': all_results,
-        'remaining_capacity': remaining
+        'status': solver_status,
+        'results': all_res,
+        'remaining_capacity': final_capacity
     }
 
-# Updated buffer graph function to reflect assigned orders
+# --------------------------------------------------------------------------------
+# VISUALIZATION
+# --------------------------------------------------------------------------------
+
 def create_buffer_graph(remaining, results):
-    remaining['StrippingStartDate'] = pd.to_datetime(remaining['StrippingStartDate'])
-    remaining['StrippingStopDate'] = pd.to_datetime(remaining['StrippingStopDate'])
+    """
+    We can still do a naive 'weekly' leftover plot, but we only track 'TotalEggsRemaining'.
+    For each site, we consider the entire Gains+Shield capacity as one pool.
+    """
+    # We'll rename columns for clarity
+    df = remaining.copy()
+    df['StrippingStartDate'] = pd.to_datetime(df['StrippingStartDate'])
+    df['StrippingStopDate'] = pd.to_datetime(df['StrippingStopDate'])
     
-    # Initialize remaining capacity with original values
     buffer_data = []
-    facilities = remaining['Site'].unique()
-    start_date = remaining['StrippingStartDate'].min()
-    end_date = remaining['StrippingStopDate'].max() + pd.Timedelta(weeks=4)
+    facilities = df['Site'].unique()
+    start_date = df['StrippingStartDate'].min()
+    end_date = df['StrippingStopDate'].max() + pd.Timedelta(weeks=4)
     weekly_dates = pd.date_range(start=start_date, end=end_date, freq='W-MON')
     
-    # Create a copy of remaining capacity to track changes over time
-    current_remaining = remaining.copy()
+    # We'll track total capacity usage as a single pool
+    current_rem = {fac: float(df.loc[df['Site'] == fac, 'TotalEggs'].iloc[0]) for fac in facilities}
     
     for week in weekly_dates:
         for facility in facilities:
-            facility_groups = current_remaining[current_remaining['Site'] == facility].iloc[0]
-            total_gain = facility_groups['Gain-eggs-remaining']
-            total_shield = facility_groups['Shield-eggs-remaining']
-            total_remaining = total_gain + total_shield
-            
-            # Adjust remaining capacity based on assigned orders up to this week
+            # Subtract volumes for orders delivered on/before this week
             assigned_orders = results[
-                (results['AssignedGroup'] == facility) & 
-                (pd.to_datetime(results['DeliveryDate']) <= week) &
-                (results['IsDummy'] == False)
+                (results['AssignedGroup'] == facility)
+                & (pd.to_datetime(results['DeliveryDate']) <= week)
+                & (results['IsDummy'] == False)
             ]
-            for _, order in assigned_orders.iterrows():
-                if order['Product'] == 'Gain':
-                    total_gain -= order['Volume']
-                elif order['Product'] == 'Shield':
-                    total_shield -= order['Volume']
+            used_this_week = assigned_orders['Volume'].sum()
             
-            # Update current remaining for next iteration
-            current_remaining.loc[current_remaining['Site'] == facility, 'Gain-eggs-remaining'] = total_gain
-            current_remaining.loc[current_remaining['Site'] == facility, 'Shield-eggs-remaining'] = total_shield
-            total_remaining = max(total_gain + total_shield, 0)  # Ensure non-negative
+            # Reduce the local capacity
+            current_rem[facility] -= used_this_week
+            if current_rem[facility] < 0:
+                current_rem[facility] = 0  # No negative leftover for the plot
             
             buffer_data.append({
                 'Week': week,
                 'Facility': facility,
-                'TotalRemaining': total_remaining / 1e6  # Convert to millions for readability
+                'TotalRemaining': current_rem[facility] / 1e6
             })
     
     buffer_df = pd.DataFrame(buffer_data)
-    
-    fig = px.line(buffer_df, x='Week', y='TotalRemaining', color='Facility',
-                  title='Weekly Inventory Buffer per Facility', markers=True)
+    fig = px.line(
+        buffer_df, x='Week', y='TotalRemaining', color='Facility',
+        title='Weekly Inventory Buffer (Merged Gains+Shield)', markers=True
+    )
     fig.update_layout(
         xaxis_title="Week",
         yaxis_title="Available Roe (Millions)",
-        title={'x': 0.5, 'xanchor': 'center', 'font': {'size': 20}},
         template="plotly_white",
         font=dict(family="Arial, sans-serif", size=14),
         legend_title_text="Facility",
         margin=dict(l=50, r=50, t=80, b=50),
-        plot_bgcolor="rgba(0,0,0,0)",
-        paper_bgcolor="rgba(0,0,0,0)",
     )
     fig.update_traces(line=dict(width=3), marker=dict(size=10))
     return fig
 
-# Table styling function with corrected filter query syntax
 def get_table_style():
     return {
         'style_table': {'overflowX': 'auto', 'borderRadius': '10px', 'overflow': 'hidden'},
@@ -268,13 +355,16 @@ def get_table_style():
                     'filter_query': '{AssignedGroup} != "Skipped-Cancelled" and {AssignedGroup} != "Dummy" and {AssignedGroup} != ""',
                     'column_id': 'OrderNr'
                 },
-                'backgroundColor': '#d4edda',  # Light green for delivered orders
+                'backgroundColor': '#d4edda',
                 'color': 'black'
             }
         ]
     }
 
-# App layout with Bootstrap and enhanced styling
+# --------------------------------------------------------------------------------
+# DASH LAYOUT
+# --------------------------------------------------------------------------------
+
 app.layout = dbc.Container([
     html.H1("Fish Egg Allocation Solver", className="text-center my-4 py-3 bg-primary text-white rounded"),
     
@@ -304,16 +394,29 @@ app.layout = dbc.Container([
         ], width=6),
         
         dbc.Col([
-            html.H3("Problem Description", className="mt-4"),
+            html.H3("Problem Description & Constraints", className="mt-4"),
             dcc.Markdown("""
-                ### Fish Egg Allocation Problem
+                **Intent**  
+                This solver automates the allocation of customer orders (each with a certain volume of eggs) 
+                to different fish groups (sites).  
                 
-                **Key Objectives:**
-                - Reserve customer orders against fish groups/cylinders based on delivery dates and temperature conditions.
-                - Automate the allocation to reduce manual work.
-                - Manage waste by optimizing the splitting of fish groups into batches.
-                - Visualize inventory buffers with a weekly graph per production facility.
+                **Key Constraints**  
+                1. **Assign each active (non-cancelled) order exactly once**.  
+                2. **Shield→Gain**: If a product is Shield, it can use leftover Gains capacity.  
+                3. **Gains capacity** must not be exceeded by Gains orders alone.  
+                4. **Total capacity** (Gains+Shield) must not be exceeded by Gains+Shield orders combined.  
+                5. **Organic**: If an order is Organic, it must go to an Organic site (or Dummy).  
+                6. **Locked site**: If an order is locked to a site, it can only go there or Dummy.  
+                7. **Preferred site**: Soft constraint (small penalty if we don't assign it there).  
+                8. **Dummy**: Large penalty to avoid usage if possible.  
+                9. **Date window**: An order's delivery date must lie within a site's [Start, Stop].  
+                10. **FIFO**: We add a small penalty for using groups with a later stop-date first.  
+
+                **Merged Gains+Shield Reporting**  
+                - In the final capacity table, Gains and Shield are combined into a single "TotalEggs" 
+                  column. This avoids negative leftover if a Shield order partially uses Gains capacity.
             """, className="p-3 bg-light rounded"),
+            
             dbc.Button('Solve Allocation Problem', id='solve-button', n_clicks=0, color="success", size="lg", className="mt-4"),
         ], width=6, className="p-4"),
     ], className="my-4"),
@@ -321,27 +424,35 @@ app.layout = dbc.Container([
     dcc.Loading(
         id="loading",
         type="circle",
-        children=html.Div(id='results-section', className="mt-4", style={'display': 'none'}, children=[
-            html.H2("Solver Results", className="text-center mb-4"),
-            dbc.Row([
-                dbc.Col([
-                    html.H3("Order Assignments", className="mt-4"),
-                    dash_table.DataTable(id='results-table', **get_table_style()),
-                    html.H3("Remaining Capacity", className="mt-4"),
-                    dash_table.DataTable(id='capacity-table', **get_table_style()),
-                ], width=12),
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    html.H3("Weekly Inventory Buffer", className="mt-4"),
-                    dcc.Graph(id='buffer-visualization'),
-                ], width=12),
-            ]),
-        ])
+        children=html.Div(
+            id='results-section',
+            className="mt-4",
+            style={'display': 'none'},
+            children=[
+                html.H2("Solver Results", className="text-center mb-4"),
+                dbc.Row([
+                    dbc.Col([
+                        html.H3("Order Assignments", className="mt-4"),
+                        dash_table.DataTable(id='results-table', **get_table_style()),
+                        html.H3("Remaining Capacity (Merged)", className="mt-4"),
+                        dash_table.DataTable(id='capacity-table', **get_table_style()),
+                    ], width=12),
+                ]),
+                dbc.Row([
+                    dbc.Col([
+                        html.H3("Weekly Inventory Buffer", className="mt-4"),
+                        dcc.Graph(id='buffer-visualization'),
+                    ], width=12),
+                ]),
+            ]
+        )
     )
 ], fluid=True)
 
-# Callbacks for adding rows to tables
+# --------------------------------------------------------------------------------
+# CALLBACKS
+# --------------------------------------------------------------------------------
+
 @app.callback(
     Output('order-table', 'data'),
     Input('add-order-row-button', 'n_clicks'),
@@ -364,72 +475,56 @@ def add_fish_group_row(n_clicks, rows):
         rows.append({col: '' for col in default_fish_groups.columns})
     return rows
 
-# Callback for solving the problem and displaying results
 @app.callback(
-    [Output('results-section', 'style'),
-     Output('results-table', 'data'),
-     Output('results-table', 'columns'),
-     Output('capacity-table', 'data'),
-     Output('capacity-table', 'columns'),
-     Output('buffer-visualization', 'figure'),
-     Output('solve-button', 'children')],
+    [
+        Output('results-section', 'style'),
+        Output('results-table', 'data'),
+        Output('results-table', 'columns'),
+        Output('capacity-table', 'data'),
+        Output('capacity-table', 'columns'),
+        Output('buffer-visualization', 'figure'),
+        Output('solve-button', 'children')
+    ],
     Input('solve-button', 'n_clicks'),
-    [State('order-table', 'data'),
-     State('fish-group-table', 'data')],
+    [State('order-table', 'data'), State('fish-group-table', 'data')],
     prevent_initial_call=True
 )
 def update_results(n_clicks, order_data, fish_group_data):
     if n_clicks > 0:
-        # Convert data to DataFrame
+        # Convert to DataFrame
         orders_df = pd.DataFrame(order_data)
         fish_groups_df = pd.DataFrame(fish_group_data)
         
-        # Convert numeric and boolean columns
-        if not orders_df.empty:
-            for col in ['Volume']:
-                if col in orders_df.columns:
-                    orders_df[col] = pd.to_numeric(orders_df[col], errors='coerce')
-            orders_df['Organic'] = orders_df['Organic'].apply(
-                lambda x: True if str(x).lower() in ['true', '1', 't', 'y', 'yes', 'organic'] else False
-            )
-        if not fish_groups_df.empty:
-            for col in ['Gain-eggs', 'Shield-eggs']:
-                if col in fish_groups_df.columns:
-                    fish_groups_df[col] = pd.to_numeric(fish_groups_df[col], errors='coerce')
-            fish_groups_df['Organic'] = fish_groups_df['Organic'].apply(
-                lambda x: True if str(x).lower() in ['true', '1', 't', 'y', 'yes', 'organic'] else False
-            )
-        
-        # Solve the allocation problem
+        # Solve
         solution = solve_egg_allocation(orders_df, fish_groups_df)
         
-        # Prepare results
+        # Extract
         results_df = solution['results']
         capacity_df = solution['remaining_capacity']
-        
-        # Prepare columns for DataTable
-        results_columns = [{'name': col, 'id': col} for col in results_df.columns]
-        capacity_columns = [{'name': col, 'id': col} for col in capacity_df.columns]
-        
-        # Create weekly inventory buffer visualization with adjusted capacity
-        buffer_fig = create_buffer_graph(capacity_df, results_df)
-        
-        # Update button text with solver status
         status = solution['status']
+        
+        # Prepare columns
+        results_cols = [{'name': c, 'id': c} for c in results_df.columns]
+        capacity_cols = [{'name': c, 'id': c} for c in capacity_df.columns]
+        
+        # Create plot
+        fig = create_buffer_graph(capacity_df, results_df)
+        
+        # Status
         button_text = f"Solve Allocation Problem (Status: {status})"
         
         return (
             {'margin': '20px', 'display': 'block'},
             results_df.to_dict('records'),
-            results_columns,
+            results_cols,
             capacity_df.to_dict('records'),
-            capacity_columns,
-            buffer_fig,
+            capacity_cols,
+            fig,
             button_text
         )
     
     return ({'display': 'none'}, [], [], [], [], {}, "Solve Allocation Problem")
 
-# Run the app
 if __name__ == '__main__':
     app.run_server(debug=True)
+
