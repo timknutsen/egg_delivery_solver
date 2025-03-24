@@ -404,6 +404,13 @@ def get_table_style():
 
 orders_data, fish_groups_data = load_validated_data()
 
+# Subset the filtered orders and fish groups to a random sample:
+# Only 20 orders and 10 fish groups will be selected (if available).
+if not orders_data.empty:
+    orders_data = orders_data.sample(n=min(20, len(orders_data)), random_state=42)
+if not fish_groups_data.empty:
+    fish_groups_data = fish_groups_data.sample(n=min(10, len(fish_groups_data)), random_state=42)
+
 # -------------------------------
 # DASH APP SETUP
 # -------------------------------
