@@ -90,8 +90,8 @@ def validate_fish_groups(df):
 # -------------------------------
 
 def load_validated_data():
-    orders_path = "example_data/orders_example.csv"
-    fish_groups_path = "example_data/fish_groups_example.csv"
+    orders_path = "new_version_for_meeting/example_data/orders_example.csv"
+    fish_groups_path = "new_version_for_meeting/example_data/fish_groups_example.csv"
     try:
         orders_df = pd.read_csv(orders_path)
     except Exception as e:
@@ -130,7 +130,7 @@ def load_validated_data():
     return orders_df, fish_groups_df
 
 # -------------------------------
-# SOLVER FUNCTION
+# SOLVER FUNCTION (same as before)
 # -------------------------------
 
 def solve_egg_allocation(orders, fish_groups):
@@ -190,11 +190,9 @@ def solve_egg_allocation(orders, fish_groups):
                    for i in active_orders.index for j in all_fish_groups.index)
     )
     
-    # Each order assigned exactly once
     for i in active_orders.index:
         prob += pl.lpSum(x[i, j] for j in all_fish_groups.index) == 1
     
-    # Gains vs. Shield capacity
     gain_orders = [i for i in active_orders.index if active_orders.loc[i, "Product"] == "Gain"]
     shield_orders = [i for i in active_orders.index if active_orders.loc[i, "Product"] == "Shield"]
     
@@ -205,14 +203,12 @@ def solve_egg_allocation(orders, fish_groups):
             prob += pl.lpSum(x[i, j] * active_orders.loc[i, "Volume"] for i in gain_orders) <= Gcap
             prob += pl.lpSum(x[i, j] * active_orders.loc[i, "Volume"] for i in (gain_orders + shield_orders)) <= (Gcap + Scap)
     
-    # Organic requirement
     for i in active_orders.index:
         if active_orders.loc[i, "Organic"]:
             for j in all_fish_groups.index:
                 if (not all_fish_groups.loc[j, "Organic"]) and (all_fish_groups.loc[j, "Site"] != "Dummy"):
                     prob += x[i, j] == 0
     
-    # Locked site requirement
     for i in active_orders.index:
         locked_site = active_orders.loc[i, "LockedSite"]
         if pd.notna(locked_site) and locked_site != "":
@@ -220,21 +216,15 @@ def solve_egg_allocation(orders, fish_groups):
                 if (all_fish_groups.loc[j, "Site"] != locked_site) and (all_fish_groups.loc[j, "Site"] != "Dummy"):
                     prob += x[i, j] == 0
     
-    # Dummy penalty
     for i in active_orders.index:
         prob += dummy_penalty[i] >= x[i, dummy_idx]
     
-    # Preferred site penalty
     for i in active_orders.index:
         if i in pref_penalty:
             pref_site = active_orders.loc[i, "PreferredSite"]
-            not_pref = [
-                jj for jj in all_fish_groups.index 
-                if (all_fish_groups.loc[jj, "Site"] != pref_site) and (all_fish_groups.loc[jj, "Site"] != "Dummy")
-            ]
+            not_pref = [jj for jj in all_fish_groups.index if (all_fish_groups.loc[jj, "Site"] != pref_site) and (all_fish_groups.loc[jj, "Site"] != "Dummy")]
             prob += pref_penalty[i] >= pl.lpSum(x[i, jj] for jj in not_pref)
     
-    # Date constraints
     for i in active_orders.index:
         ddate = active_orders.loc[i, "DeliveryDate"]
         for j in all_fish_groups.index:
@@ -248,7 +238,6 @@ def solve_egg_allocation(orders, fish_groups):
     prob.solve()
     solver_status = pl.LpStatus[prob.status]
     
-    # Extract solution
     results = active_orders.copy()
     results["AssignedGroup"] = None
     results["IsDummy"] = False
@@ -260,7 +249,6 @@ def solve_egg_allocation(orders, fish_groups):
                 results.loc[i, "IsDummy"] = (group_site == "Dummy")
                 break
     
-    # Merge results with original (including cancelled orders)
     all_res = orders.copy()
     all_res["AssignedGroup"] = None
     all_res["IsDummy"] = False
@@ -270,12 +258,10 @@ def solve_egg_allocation(orders, fish_groups):
             all_res.loc[idx[0], "AssignedGroup"] = row["AssignedGroup"]
             all_res.loc[idx[0], "IsDummy"] = row["IsDummy"]
     
-    # Mark cancelled as "Skipped-Cancelled"
     cancelled_idx = all_res[all_res["OrderStatus"] == "Kansellert"].index
     all_res.loc[cancelled_idx, "AssignedGroup"] = "Skipped-Cancelled"
     all_res.loc[cancelled_idx, "IsDummy"] = False
     
-    # Calculate capacity usage
     capacity = fish_groups.copy()
     capacity["TotalEggs"] = capacity["Gain-eggs"] + capacity["Shield-eggs"]
     total_used = []
@@ -286,15 +272,7 @@ def solve_egg_allocation(orders, fish_groups):
     capacity["TotalEggsUsed"] = total_used
     capacity["TotalEggsRemaining"] = capacity["TotalEggs"] - capacity["TotalEggsUsed"]
     
-    final_capacity = capacity[[
-        "Site", 
-        "StrippingStartDate", 
-        "StrippingStopDate", 
-        "TotalEggs", 
-        "Organic", 
-        "TotalEggsUsed", 
-        "TotalEggsRemaining"
-    ]]
+    final_capacity = capacity[["Site", "StrippingStartDate", "StrippingStopDate", "TotalEggs", "Organic", "TotalEggsUsed", "TotalEggsRemaining"]]
     
     return {
         "status": solver_status,
@@ -315,11 +293,7 @@ def create_buffer_graph(remaining, results):
     start_date = df["StrippingStartDate"].min()
     end_date = df["StrippingStopDate"].max() + pd.Timedelta(weeks=4)
     weekly_dates = pd.date_range(start=start_date, end=end_date, freq="W-MON")
-    
-    current_rem = {
-        fac: float(df.loc[df["Site"] == fac, "TotalEggs"].iloc[0]) 
-        for fac in facilities
-    }
+    current_rem = {fac: float(df.loc[df["Site"] == fac, "TotalEggs"].iloc[0]) for fac in facilities}
     
     for week in weekly_dates:
         for facility in facilities:
@@ -337,16 +311,9 @@ def create_buffer_graph(remaining, results):
                 "Facility": facility,
                 "TotalRemaining": current_rem[facility] / 1e6
             })
-    
     buffer_df = pd.DataFrame(buffer_data)
-    fig = px.line(
-        buffer_df, 
-        x="Week", 
-        y="TotalRemaining", 
-        color="Facility",
-        title="Weekly Inventory Buffer (Merged Gains+Shield)",
-        markers=True
-    )
+    fig = px.line(buffer_df, x="Week", y="TotalRemaining", color="Facility",
+                  title="Weekly Inventory Buffer (Merged Gains+Shield)", markers=True)
     fig.update_layout(
         xaxis_title="Week",
         yaxis_title="Available Roe (Millions)",
@@ -360,14 +327,15 @@ def create_buffer_graph(remaining, results):
 
 def get_table_style():
     """
-    Enhanced style for large tables:
+    Enhanced styling for wide/large tables:
+      - Pagination + Sorting/Filtering
       - Constrain column widths
-      - Scroll if table is too wide or too tall
+      - Scroll if table is too wide/tall
     """
     return {
         "style_table": {
             "overflowX": "auto",
-            "maxHeight": "400px",  # limit vertical expansion, scroll if exceeded
+            "maxHeight": "400px",
             "overflowY": "auto",
             "borderRadius": "10px"
         },
@@ -394,11 +362,7 @@ def get_table_style():
         },
         "style_data_conditional": [
             {"if": {"row_index": "odd"}, "backgroundColor": "#f9f9f9"},
-            {
-                "if": {"state": "selected"}, 
-                "backgroundColor": "#cce5ff", 
-                "border": "1px solid #007bff"
-            },
+            {"if": {"state": "selected"}, "backgroundColor": "#cce5ff", "border": "1px solid #007bff"},
             {
                 "if": {
                     "filter_query": '{AssignedGroup} != "Skipped-Cancelled" and {AssignedGroup} != "Dummy" and {AssignedGroup} != ""',
@@ -437,7 +401,7 @@ app.layout = dbc.Container([
                 # Pagination
                 page_action='native',
                 page_current=0,
-                page_size=10,  # show 10 rows per page
+                page_size=10,
                 # Sorting & Filtering
                 sort_action='native',
                 filter_action='native',
@@ -455,7 +419,7 @@ app.layout = dbc.Container([
                 # Pagination
                 page_action='native',
                 page_current=0,
-                page_size=10,  # show 10 rows per page
+                page_size=10,
                 # Sorting & Filtering
                 sort_action='native',
                 filter_action='native',
@@ -566,7 +530,6 @@ def update_results(n_clicks, order_data, fish_group_data):
         orders_df = pd.DataFrame(order_data)
         fish_groups_df = pd.DataFrame(fish_group_data)
         
-        # Re-validate with the updated data
         fish_groups_df = validate_fish_groups(fish_groups_df)
         valid_sites = fish_groups_df["Site"].unique().tolist()
         orders_df = validate_orders(orders_df, valid_sites)
@@ -578,13 +541,10 @@ def update_results(n_clicks, order_data, fish_group_data):
         results_df = solution["results"]
         capacity_df = solution["remaining_capacity"]
         status = solution["status"]
-        
         results_cols = [{"name": c, "id": c} for c in results_df.columns]
         capacity_cols = [{"name": c, "id": c} for c in capacity_df.columns]
-        
         fig = create_buffer_graph(capacity_df, results_df)
         button_text = f"Solve Allocation Problem (Status: {status})"
-        
         return (
             {"margin": "20px", "display": "block"},
             results_df.to_dict("records"),
@@ -597,6 +557,14 @@ def update_results(n_clicks, order_data, fish_group_data):
     
     return ({"display": "none"}, [], [], [], [], {}, "Solve Allocation Problem")
 
+# -------------------------------
+# ONLY THIS PART IS CHANGED
+# -------------------------------
 if __name__ == "__main__":
-    app.run_server(debug=True)
+    import os
+    port = int(os.environ.get('PORT', 8050))  # default 8050 for local
+    host = '0.0.0.0'
+    debug = os.environ.get('DEBUG', 'True').lower() == 'true'
+    print(f"Starting server on {host}:{port} with debug={debug}")
+    app.run_server(host=host, port=port, debug=debug)
 
