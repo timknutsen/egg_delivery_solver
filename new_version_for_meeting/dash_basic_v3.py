@@ -13,8 +13,8 @@ import io
 # CONFIGURATION
 # -------------------------------
 # Define file paths for the updated example data
-ORDERS_DATA_PATH = "example_data/orders_example_updated.csv"
-FISH_GROUPS_DATA_PATH = "example_data/fish_groups_example_updated.csv"
+ORDERS_DATA_PATH = "new_version_for_meeting/example_data/orders_example.csv"
+FISH_GROUPS_DATA_PATH = "new_version_for_meeting/example_data/fish_groups_example.csv"
 
 # Define specific constraint parameters (ADJUST THESE AS NEEDED)
 ELITE_NUCLEUS_SITE = "Hemne"  # Site(s) allowed for Elite/Nucleus
