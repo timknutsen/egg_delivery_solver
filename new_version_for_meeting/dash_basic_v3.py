@@ -13,8 +13,8 @@ import io
 # CONFIGURATION
 # -------------------------------
 # Define file paths for the updated example data
-ORDERS_DATA_PATH = "new_version_for_meeting/example_data/orders_example.csv"
-FISH_GROUPS_DATA_PATH = "new_version_for_meeting/example_data/fish_groups_example.csv"
+ORDERS_DATA_PATH = "new_version_for_meeting/example_data/orders_example_updated.csv"
+FISH_GROUPS_DATA_PATH = "new_version_for_meeting/example_data/fish_groups_example_updated.csv"
 
 # Define specific constraint parameters (ADJUST THESE AS NEEDED)
 ELITE_NUCLEUS_SITE = "Hemne"  # Site(s) allowed for Elite/Nucleus
@@ -106,25 +106,57 @@ def validate_fish_groups(df):
     
     df = df.copy()
     
-    # Convert data types
+    # Convert data types - ensure column exists before attempting conversion
     date_columns = ["StrippingStartDate", "StrippingStopDate", "SalesStartDate", "SalesStopDate"]
     for col in date_columns:
-        df[col] = pd.to_datetime(df[col], errors="coerce")
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+        else:
+            print(f"Warning: Column '{col}' not found in fish groups data. Adding empty column.")
+            df[col] = pd.NaT
     
-    df["Gain-eggs"] = pd.to_numeric(df["Gain-eggs"], errors="coerce").fillna(0)
-    df["Shield-eggs"] = pd.to_numeric(df["Shield-eggs"], errors="coerce").fillna(0)
-    df["Organic"] = df["Organic"].apply(process_organic)
+    # Ensure numeric columns exist
+    if "Gain-eggs" in df.columns:
+        df["Gain-eggs"] = pd.to_numeric(df["Gain-eggs"], errors="coerce").fillna(0)
+    else:
+        df["Gain-eggs"] = 0
+        
+    if "Shield-eggs" in df.columns:
+        df["Shield-eggs"] = pd.to_numeric(df["Shield-eggs"], errors="coerce").fillna(0)
+    else:
+        df["Shield-eggs"] = 0
+    
+    # Process organic status
+    if "Organic" in df.columns:
+        df["Organic"] = df["Organic"].apply(process_organic)
+    else:
+        df["Organic"] = False
     
     # Ensure GroupKey exists (use Site_Broodst_Season)
     if "GroupKey" not in df.columns:
-        df["GroupKey"] = df["Site_Broodst_Season"]
+        if "Site_Broodst_Season" in df.columns:
+            df["GroupKey"] = df["Site_Broodst_Season"]
+        else:
+            print("Warning: Neither GroupKey nor Site_Broodst_Season found in data. Creating placeholder.")
+            df["GroupKey"] = "Unknown"
+            df["Site_Broodst_Season"] = "Unknown"
+    
+    # Ensure Site column exists
+    if "Site" not in df.columns:
+        df["Site"] = df["Site_Broodst_Season"].apply(lambda x: str(x).split("_")[0] if pd.notna(x) else "Unknown")
+        print("Warning: 'Site' column not found. Creating from Site_Broodst_Season.")
     
     # Remove rows with invalid critical data
+    required_columns = ["GroupKey", "Site_Broodst_Season", "Site"]
     initial_count = len(df)
-    df = df.dropna(subset=date_columns + ["GroupKey"])
-    df = df.drop_duplicates(subset=["GroupKey"], keep='first')  # Ensure unique groups
+    for col in required_columns:
+        if col in df.columns:
+            df = df.dropna(subset=[col])
+    
+    df = df.drop_duplicates(subset=["GroupKey" if "GroupKey" in df.columns else "Site_Broodst_Season"], keep='first')
+    
     if len(df) < initial_count:
-        print(f"Removed {initial_count - len(df)} fish groups with invalid dates or duplicates.")
+        print(f"Removed {initial_count - len(df)} fish groups with invalid data or duplicates.")
     
     return df
 
@@ -161,18 +193,22 @@ def parse_contents(contents, filename):
     Decode uploaded file contents and return a Pandas DataFrame.
     Supports CSV and Excel files.
     """
-    content_type, content_string = contents.split(',')
-    decoded = base64.b64decode(content_string)
+    if contents is None:
+        return None
+        
     try:
+        content_type, content_string = contents.split(',')
+        decoded = base64.b64decode(content_string)
+        
         if "csv" in filename.lower():
             return pd.read_csv(io.StringIO(decoded.decode("utf-8")))
         elif "xls" in filename.lower():
             return pd.read_excel(io.BytesIO(decoded))
         else:
-            print("Unsupported file format.")
+            print(f"Unsupported file format: {filename}")
             return None
     except Exception as e:
-        print(e)
+        print(f"Error parsing file {filename}: {e}")
         return None
 
 # -------------------------------
