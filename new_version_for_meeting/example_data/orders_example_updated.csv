@@ -1,65 +1,65 @@
 OrderNr,DeliveryDate,OrderStatus,CustomerID,CustomerName,Product,Organic,Volume,LockedSite,PreferredSite,MinTemp_customer,MaxTemp_customer
-7000,2025-02-08,Bekreftet,CUST023,Eik Settefisk AS,Nucleus,,1217325,,,400,560
-7001,2025-02-04,Bekreftet,CUST019,Cermaq Norway - Avd. Hopen,Elite,,1762052,,,480,640
-7002,2024-12-28,Bekreftet,CUST024,Elvenesstrand Smolt AS,Nucleus,,861582,,,400,480
-7003,2024-09-20,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Gain,,2251740,,,400,560
-7004,2024-10-31,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Gain,,1201094,,,480,640
-7005,2024-10-13,Bekreftet,CUST00116,Lerøy Aurora AS,Gain,,3726380,,,480,640
-7006,2024-10-12,Bekreftet,CUST013,Atlantic Sapphire USA LLC,Gain,,633125,,,400,560
-7007,2024-11-07,Bekreftet,CUST014,Bakkafrost Farming P/F,Gain,,2788755,,,400,560
-7008,2024-12-07,Bekreftet,CUST00116,Lerøy Aurora AS,Shield,,2655888,,,480,640
-7009,2024-12-25,Planlagt,CUST00116,Lerøy Aurora AS,Shield,,2432110,,,400,560
-7010,2025-01-12,Bekreftet,CUST00117,Lerøy Midt AS,Gain,,2790939,,,350,480
-7011,2024-10-02,Bekreftet,CUST011,Akvafarm AS - Avd. Skaland,Shield,Organic,1668937,,,400,560
-7012,2024-11-05,Planlagt,CUST018,Cermaq Norway - Avd. Holmvåg,Shield,Organic,367789,,,400,480
-7013,2024-12-30,Bekreftet,CUST00116,Lerøy Aurora AS,Gain,,1965276,,,350,480
-7014,2024-12-28,Bekreftet,CUST015,Barlindbotn Settefisk AS,Shield,,2404701,,,480,640
-7015,2025-02-22,Planlagt,CUST00117,Lerøy Midt AS,Shield,,2388788,,,480,640
-7016,2025-02-16,Bekreftet,CUST025,Erko Settefisk AS,Gain,,2520320,,,400,560
-7017,2025-01-25,Planlagt,CUST021,Damfisk Settefisk AS,Gain,,1006772,,,400,480
-7018,2025-02-05,Bekreftet,CUST010,Akvafarm AS,Shield,,4155889,,,400,560
-7019,2025-03-18,Planlagt,CUST035,Salmar Settefisk AS,Shield,,3066178,,,350,480
-7020,2025-01-23,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,Organic,1964134,,,480,640
-7021,2024-12-14,Bekreftet,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,Organic,4198246,,,350,480
-7022,2024-12-07,Bekreftet,CUST012,AquaGen AS,Shield,Organic,1072247,,,350,480
-7023,2025-03-15,Bekreftet,CUST017,Cermaq Norway - Avd. Forsan,Gain,,3722452,,,400,560
-7024,2024-12-19,Bekreftet,CUST032,NTNU,Gain,,2774117,,,400,480
-7025,2024-12-20,Planlagt,CUST015,Barlindbotn Settefisk AS,Shield,,3453521,,,400,560
-7026,2024-08-28,Planlagt,CUST00116,Lerøy Aurora AS,Gain,,641466,,,400,560
-7027,2025-03-22,Bekreftet,CUST00116,Lerøy Aurora AS,Shield,,1764366,,,400,480
-7028,2024-12-18,Bekreftet,CUST034,SalMar Settefisk AS,Gain,,3086148,,,400,560
-7029,2025-01-23,Bekreftet,CUST017,Cermaq Norway - Avd. Forsan,Gain,,3522545,,,400,560
-7030,2025-01-16,Bekreftet,CUST015,Barlindbotn Settefisk AS,Gain,,547706,,,480,640
-7031,2025-04-07,Bekreftet,CUST013,Atlantic Sapphire USA LLC,Gain,,1507878,,,400,480
-7032,2024-12-02,Planlagt,CUST023,Eik Settefisk AS,Shield,,200000,,,400,560
-7033,2025-03-30,Bekreftet,CUST020,Cermaq Norway - Avd. Veines,Gain,Organic,1698045,,,400,560
-7034,2024-12-22,Bekreftet,CUST035,Salmar Settefisk AS,Shield,,2506984,,,400,480
-7035,2025-01-09,Bekreftet,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,2113294,,,350,480
-7036,2025-03-29,Planlagt,CUST00116,Lerøy Aurora AS,Shield,,375957,,,400,560
-7037,2025-01-13,Bekreftet,CUST00117,Lerøy Midt AS,Shield,,1905204,,,480,640
-7038,2025-02-13,Planlagt,CUST033,Neptun Salmo AS,Shield,,612560,,,400,560
-7039,2025-01-26,Bekreftet,CUST035,Salmar Settefisk AS,Shield,,551612,,,400,560
-7040,2024-12-07,Bekreftet,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,Organic,2244421,,,400,560
-7041,2024-12-30,Bekreftet,CUST017,Cermaq Norway - Avd. Forsan,Shield,Organic,4184742,,,400,560
-7042,2025-01-19,Planlagt,CUST034,SalMar Settefisk AS,Gain,Organic,219637,,,480,640
-7043,2025-04-01,Planlagt,CUST020,Cermaq Norway - Avd. Veines,Shield,Organic,1753040,,,350,480
-7044,2025-03-11,Bekreftet,CUST020,Cermaq Norway - Avd. Veines,Shield,Organic,3181631,,,480,640
-7045,2025-02-07,Bekreftet,CUST029,MOWI Færøyane,Shield,Organic,1450245,,,350,480
-7046,2025-01-20,Bekreftet,CUST00118,Lerøy Sjøtroll Kjærelva AS,Gain,Organic,647231,,,400,560
-7047,2025-02-05,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,743668,Hønsvikgulen_Normal_24/25,,350,480
-7048,2024-11-17,Planlagt,CUST017,Cermaq Norway - Avd. Forsan,Shield,,200000,Barstadvik_Normal_24/25,,480,640
-7049,2024-10-02,Bekreftet,CUST017,Cermaq Norway - Avd. Forsan,Shield,,1798654,Bogen_Off-season2_24/25,,480,640
-7050,2025-02-01,Planlagt,CUST024,Elvenesstrand Smolt AS,Gain,,3027412,Kilavågen Land_Normal_24/25,,480,640
-7051,2025-02-17,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,744628,Hønsvikgulen_Normal_24/25,,350,480
-7052,2025-01-12,Planlagt,CUST035,Salmar Settefisk AS,Shield,Organic,3483337,,Bogen_Normal_24/25,350,480
-7053,2024-11-26,Bekreftet,CUST034,SalMar Settefisk AS,Gain,,1490285,,Vestseøra_Early_24/25,400,480
-7054,2025-03-04,Bekreftet,CUST020,Cermaq Norway - Avd. Veines,Gain,,1062401,,Barstadvik_Late_24/25_1,350,480
-7055,2025-02-10,Planlagt,CUST011,Akvafarm AS - Avd. Skaland,Gain,,277754,,Barstadvik_Late_24/25_1,480,640
-7056,2024-11-16,Planlagt,CUST030,MOWI Scotland Ltd,Gain,,200000,,Barstadvik_Normal_24/25,480,640
-7057,2024-11-25,Kansellert,CUST031,NMBU,Gain,,1014032,,,350,480
-7058,2024-11-24,Kansellert,CUST00118,Lerøy Sjøtroll Kjærelva AS,Gain,,1915273,,,400,560
-7059,2025-01-04,Kansellert,CUST023,Eik Settefisk AS,Shield,,1960954,,,400,560
-7060,2025-01-24,Kansellert,CUST012,AquaGen AS,Shield,,4667913,,,400,480
-7061,2025-03-01,Kansellert,CUST011,Akvafarm AS - Avd. Skaland,Gain,,1819458,,,400,560
-7062,2024-10-16,Kansellert,CUST017,Cermaq Norway - Avd. Forsan,Shield,,3184163,,,350,480
-7063,2025-04-07,Kansellert,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,2884929,,,350,480
+7000,2024-11-28,Bekreftet,CUST035,Salmar Settefisk AS,Elite,,987496,,,300,600
+7001,2024-12-11,Bekreftet,CUST018,Cermaq Norway - Avd. Holmvåg,Elite,,559536,,,350,700
+7002,2024-12-17,Planlagt,CUST017,Cermaq Norway - Avd. Forsan,Nucleus,,1955989,,,400,800
+7003,2024-10-17,Bekreftet,CUST00117,Lerøy Midt AS,Gain,,1273787,,,400,800
+7004,2024-10-10,Bekreftet,CUST00117,Lerøy Midt AS,Gain,,495582,,,350,700
+7005,2024-10-10,Planlagt,CUST00116,Lerøy Aurora AS,Gain,,3157586,,,350,700
+7006,2024-10-16,Bekreftet,CUST029,MOWI Færøyane,Gain,,4159551,,,400,800
+7007,2024-10-18,Planlagt,CUST014,Bakkafrost Farming P/F,Gain,,3069796,,,300,800
+7008,2024-12-11,Bekreftet,CUST011,Akvafarm AS - Avd. Skaland,Shield,,200000,,,350,700
+7009,2025-01-17,Bekreftet,CUST00116,Lerøy Aurora AS,Shield,,3476930,,,300,800
+7010,2024-08-27,Bekreftet,CUST019,Cermaq Norway - Avd. Hopen,Shield,,610028,,,350,700
+7011,2025-01-02,Bekreftet,CUST030,MOWI Scotland Ltd,Shield,,440693,,,300,800
+7012,2025-03-29,Bekreftet,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,3021212,,,300,800
+7013,2025-01-23,Bekreftet,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,573106,,,300,800
+7014,2025-04-08,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,Organic,2160186,,,350,700
+7015,2025-04-01,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,2846377,,,300,800
+7016,2025-02-27,Bekreftet,CUST019,Cermaq Norway - Avd. Hopen,Gain,,1213632,,,400,600
+7017,2025-03-06,Bekreftet,CUST018,Cermaq Norway - Avd. Holmvåg,Shield,,1893248,,,350,700
+7018,2025-02-21,Bekreftet,CUST030,MOWI Scotland Ltd,Gain,,3663568,,,400,800
+7019,2024-10-28,Bekreftet,CUST033,Neptun Salmo AS,Gain,,3173633,,,350,700
+7020,2025-04-16,Planlagt,CUST033,Neptun Salmo AS,Shield,,1133448,,,300,800
+7021,2025-03-11,Planlagt,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,1132196,,,300,600
+7022,2024-10-14,Bekreftet,CUST023,Eik Settefisk AS,Shield,,3217159,,,300,800
+7023,2025-03-30,Bekreftet,CUST035,Salmar Settefisk AS,Gain,,4607503,,,300,800
+7024,2025-01-02,Planlagt,CUST014,Bakkafrost Farming P/F,Gain,,1066238,,,300,800
+7025,2025-01-28,Planlagt,CUST012,AquaGen AS,Shield,,234118,,,300,600
+7026,2025-01-20,Bekreftet,CUST025,Erko Settefisk AS,Gain,,1094681,,,300,600
+7027,2024-12-31,Bekreftet,CUST019,Cermaq Norway - Avd. Hopen,Shield,,1332876,,,300,800
+7028,2025-02-03,Bekreftet,CUST023,Eik Settefisk AS,Gain,,3835332,,,350,700
+7029,2025-01-24,Bekreftet,CUST00116,Lerøy Aurora AS,Shield,,971727,,,300,800
+7030,2024-08-22,Planlagt,CUST023,Eik Settefisk AS,Shield,,3542424,,,300,800
+7031,2024-10-11,Bekreftet,CUST00117,Lerøy Midt AS,Gain,,1034983,,,350,700
+7032,2024-12-13,Bekreftet,CUST030,MOWI Scotland Ltd,Shield,Organic,2188247,,,400,800
+7033,2025-03-02,Bekreftet,CUST012,AquaGen AS,Gain,,1875130,,,300,600
+7034,2025-03-23,Bekreftet,CUST018,Cermaq Norway - Avd. Holmvåg,Shield,,1977671,,,300,800
+7035,2024-10-31,Bekreftet,CUST017,Cermaq Norway - Avd. Forsan,Gain,,585959,,,300,800
+7036,2025-01-19,Bekreftet,CUST00116,Lerøy Aurora AS,Shield,,490185,,,300,800
+7037,2025-02-04,Bekreftet,CUST024,Elvenesstrand Smolt AS,Shield,,2547029,,,400,800
+7038,2024-11-28,Bekreftet,CUST032,NTNU,Gain,,1698644,,,300,600
+7039,2024-11-08,Bekreftet,CUST020,Cermaq Norway - Avd. Veines,Gain,,527980,,,400,800
+7040,2024-12-08,Planlagt,CUST025,Erko Settefisk AS,Shield,Organic,270192,,,350,700
+7041,2024-12-27,Planlagt,CUST025,Erko Settefisk AS,Gain,Organic,1791192,,,300,600
+7042,2025-03-20,Bekreftet,CUST019,Cermaq Norway - Avd. Hopen,Shield,Organic,1322611,,,300,800
+7043,2025-02-10,Planlagt,CUST032,NTNU,Shield,Organic,670337,,,400,800
+7044,2025-02-02,Bekreftet,CUST034,SalMar Settefisk AS,Shield,Organic,1099281,,,400,600
+7045,2024-12-29,Planlagt,CUST015,Barlindbotn Settefisk AS,Gain,Organic,4665470,,,400,600
+7046,2024-10-26,Planlagt,CUST019,Cermaq Norway - Avd. Hopen,Shield,Organic,3001500,,,400,600
+7047,2025-03-28,Bekreftet,CUST00117,Lerøy Midt AS,Shield,,2089189,Hønsvikgulen_Late_24/25,,400,800
+7048,2025-01-18,Planlagt,CUST018,Cermaq Norway - Avd. Holmvåg,Shield,,584729,Bogen_Normal_24/25,,400,800
+7049,2025-03-15,Bekreftet,CUST00118,Lerøy Sjøtroll Kjærelva AS,Shield,,2008781,Hønsvikgulen_Late_24/25,,300,600
+7050,2025-01-13,Planlagt,CUST031,NMBU,Gain,,2909428,Bogen_Normal2_24/25,,300,600
+7051,2024-10-21,Bekreftet,CUST00116,Lerøy Aurora AS,Gain,,2588339,Hønsvikgulen_Off-season_24/25,,400,800
+7052,2024-11-14,Bekreftet,CUST032,NTNU,Shield,,3484658,,Vestseøra_Off-season_24/25,400,800
+7053,2025-03-26,Bekreftet,CUST023,Eik Settefisk AS,Gain,,1215284,,Vestseøra_Late_24/25,400,600
+7054,2025-04-06,Bekreftet,CUST00117,Lerøy Midt AS,Shield,,1687567,,Hønsvikgulen_Late_24/25,400,800
+7055,2025-01-25,Bekreftet,CUST022,Eide Fjordbruk AS,Shield,,4277504,,Rimstad_Normal_24/25,350,700
+7056,2024-10-25,Bekreftet,CUST018,Cermaq Norway - Avd. Holmvåg,Shield,,3897509,,Vestseøra_Off-season_24/25,350,700
+7057,2024-08-24,Kansellert,CUST029,MOWI Færøyane,Shield,,2061088,,,350,700
+7058,2025-03-26,Kansellert,CUST033,Neptun Salmo AS,Gain,Organic,506802,,,400,600
+7059,2024-11-24,Kansellert,CUST020,Cermaq Norway - Avd. Veines,Gain,,2619670,,,400,600
+7060,2024-12-15,Kansellert,CUST013,Atlantic Sapphire USA LLC,Shield,,200000,,,400,600
+7061,2024-10-10,Kansellert,CUST00116,Lerøy Aurora AS,Gain,,3847706,,,350,700
+7062,2025-02-19,Kansellert,CUST020,Cermaq Norway - Avd. Veines,Gain,,258800,,,300,800
+7063,2025-03-05,Kansellert,CUST020,Cermaq Norway - Avd. Veines,Shield,,4851274,,,300,800
