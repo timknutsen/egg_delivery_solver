@@ -869,13 +869,13 @@ initial_warnings = []
 # DASH APP SETUP
 # -------------------------------
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.FLATLY])
-app.title = "AquaGen Roe Planning System"
+app.title = "AquaGen Egg Planning System"
 
 app.layout = dbc.Container([
-    html.H1("🐟 AquaGen Roe Allocation Planner", 
+    html.H1("🐟 AquaGen Egg Allocation Planner", 
             className="text-center my-4 py-3 bg-primary text-white rounded"),
     
-    html.P("Optimize roe allocation to customer orders using degree-days maturation tracking",
+    html.P("Optimize egg allocation to customer orders using degree-days maturation tracking",
            className="text-center lead mb-4"),
     
     dbc.Row([
