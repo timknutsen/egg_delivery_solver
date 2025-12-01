@@ -7,6 +7,7 @@ Denne filen inneholder all logikk for:
 - Feasibility-sjekk (inkl. Organic)
 - Optimalisering/allokering
 - Visualisering
+- Eksport av eksempeldata
 """
 
 import pandas as pd
@@ -15,6 +16,7 @@ import plotly.graph_objects as go
 from datetime import timedelta
 import pulp as pl
 from pulp import PULP_CBC_CMD
+import io
 
 from config import WATER_TEMP_C, DD_TO_MATURE, PREFERENCE_BONUS
 
@@ -50,7 +52,6 @@ def generate_weekly_batches(fish_groups_df):
         if len(weeks) == 0: 
             weeks = pd.DatetimeIndex([strip_start])
         
-        # Normalfordeling av kapasitet
         n = len(weeks)
         indices = np.arange(n)
         weights = np.exp(-0.5 * ((indices - (n - 1) / 2) / max(n / 4, 1)) ** 2)
@@ -81,14 +82,6 @@ def generate_weekly_batches(fish_groups_df):
 def build_feasibility_set(orders_df, batches_df):
     """
     Finner alle gyldige (ordre, batch) kombinasjoner.
-    
-    Sjekker:
-    - RequireOrganic (hard constraint)
-    - LockedSite (hard constraint)
-    - LockedGroup (hard constraint)
-    - Leveringsvindu (hard constraint)
-    - PreferredSite (soft constraint)
-    - PreferredGroup (soft constraint)
     """
     feasible = []
     
@@ -99,28 +92,22 @@ def build_feasibility_set(orders_df, batches_df):
         
         for _, batch in batches_df.iterrows():
             
-            # =============================================
             # HARD CONSTRAINTS
-            # =============================================
-            
-            # Organic-krav
             require_organic = order.get('RequireOrganic', False)
             if require_organic and not batch['Organic']:
-                continue  # Skip non-organic batch if organic required
+                continue
             
-            # Locked Site
             locked_site = order.get('LockedSite')
             if pd.notna(locked_site) and str(locked_site).strip():
                 if batch['Site'] != locked_site:
                     continue
             
-            # Locked Group
             locked_group = order.get('LockedGroup')
             if pd.notna(locked_group) and str(locked_group).strip():
                 if batch['Group'] != locked_group:
                     continue
             
-            # Leveringsvindu-sjekk
+            # Leveringsvindu
             cust_start = batch['StripDate'] + timedelta(days=cust_min_days)
             cust_end = batch['StripDate'] + timedelta(days=cust_max_days)
             valid_start = max(cust_start, batch['MaturationEnd'])
@@ -129,15 +116,10 @@ def build_feasibility_set(orders_df, batches_df):
             if not (valid_start <= delivery_date <= valid_end):
                 continue
             
-            # =============================================
-            # BEREGNINGER
-            # =============================================
             days_since_strip = (delivery_date - batch['StripDate']).days
             dd_at_delivery = days_since_strip * WATER_TEMP_C
             
-            # =============================================
-            # SOFT CONSTRAINTS (Preferred)
-            # =============================================
+            # SOFT CONSTRAINTS
             bonus = 0
             pref_matched = []
             
@@ -175,17 +157,62 @@ def build_feasibility_set(orders_df, batches_df):
 
 
 # ==========================================
+# 3b. MULIGE GRUPPER PER ORDRE (NY)
+# ==========================================
+def get_possible_groups_per_order(orders_df, feasible_df):
+    """
+    Returnerer en oversikt over mulige grupper/batcher per ordre.
+    Nyttig for manuell vurdering.
+    """
+    summary = []
+    
+    for _, order in orders_df.iterrows():
+        order_nr = order['OrderNr']
+        order_feasible = feasible_df[feasible_df['OrderNr'] == order_nr]
+        
+        if order_feasible.empty:
+            summary.append({
+                'OrderNr': order_nr,
+                'Customer': order.get('Customer', ''),
+                'DeliveryDate': order['DeliveryDate'],
+                'Volume': order['Volume'],
+                'RequireOrganic': '✓' if order.get('RequireOrganic', False) else '',
+                'AntallMuligeBatcher': 0,
+                'MuligeGrupper': 'INGEN',
+                'MuligeSites': 'INGEN',
+                'MinDegreeDays': '-',
+                'MaxDegreeDays': '-',
+            })
+        else:
+            unique_groups = order_feasible['Group'].unique()
+            unique_sites = order_feasible['Site'].unique()
+            
+            summary.append({
+                'OrderNr': order_nr,
+                'Customer': order.get('Customer', ''),
+                'DeliveryDate': order['DeliveryDate'],
+                'Volume': order['Volume'],
+                'RequireOrganic': '✓' if order.get('RequireOrganic', False) else '',
+                'AntallMuligeBatcher': len(order_feasible),
+                'MuligeGrupper': ', '.join(unique_groups),
+                'MuligeSites': ', '.join(unique_sites),
+                'MinDegreeDays': order_feasible['DegreeDays'].min(),
+                'MaxDegreeDays': order_feasible['DegreeDays'].max(),
+            })
+    
+    return pd.DataFrame(summary)
+
+
+# ==========================================
 # 4. OPTIMALISERING
 # ==========================================
 def solve_allocation(orders_df, batches_df, feasible_df):
     """Løser allokeringsproblemet med lineær programmering."""
     
-    # Lag resultat for ALLE ordrer (inkl. ikke-allokerte)
     all_orders = orders_df[['OrderNr', 'Customer', 'DeliveryDate', 'Volume', 'Product', 'RequireOrganic']].copy()
     all_orders['DeliveryDate'] = pd.to_datetime(all_orders['DeliveryDate'])
     
     if feasible_df.empty:
-        # Ingen feasible kombinasjoner - alle ordrer ikke tildelt
         all_orders['BatchID'] = 'IKKE TILDELT'
         all_orders['Site'] = '-'
         all_orders['Organic'] = '-'
@@ -200,19 +227,16 @@ def solve_allocation(orders_df, batches_df, feasible_df):
     
     y = {i: pl.LpVariable(f"y_{i}", cat="Binary") for i in feasible_df['id']}
     
-    # Objektiv: Minimer døgngrader + preferanse-bonus
     prob += pl.lpSum(
         (row['DegreeDays'] + row['PreferenceBonus']) * y[row['id']] 
         for _, row in feasible_df.iterrows()
     )
 
-    # Constraint 1: Hver ordre får maks én batch
     for order_nr in orders_df['OrderNr'].unique():
         choices = feasible_df[feasible_df['OrderNr'] == order_nr]['id'].tolist()
         if choices:
-            prob += pl.lpSum(y[i] for i in choices) <= 1  # <= 1 for å tillate ikke-tildeling
+            prob += pl.lpSum(y[i] for i in choices) <= 1
 
-    # Constraint 2: Batch-kapasitet
     for batch_id in batches_df['BatchID'].unique():
         batch_rows = feasible_df[feasible_df['BatchID'] == batch_id]
         if not batch_rows.empty:
@@ -224,17 +248,14 @@ def solve_allocation(orders_df, batches_df, feasible_df):
 
     prob.solve(PULP_CBC_CMD(msg=False, timeLimit=30))
     
-    # Ekstraher allokerte
     allocated_ids = [i for i, v in y.items() if pl.value(v) and round(pl.value(v)) == 1]
     allocated_orders = set(feasible_df.loc[allocated_ids, 'OrderNr']) if allocated_ids else set()
     
-    # Bygg resultat-DataFrame med ALLE ordrer
     results = []
     for _, order in orders_df.iterrows():
         order_nr = order['OrderNr']
         
         if order_nr in allocated_orders:
-            # Finn allokeringen
             alloc_row = feasible_df[(feasible_df['OrderNr'] == order_nr) & 
                                     (feasible_df['id'].isin(allocated_ids))].iloc[0]
             results.append({
@@ -252,7 +273,6 @@ def solve_allocation(orders_df, batches_df, feasible_df):
                 'Reason': '',
             })
         else:
-            # Ikke tildelt - finn årsak
             reason = _get_unallocated_reason(order, feasible_df)
             results.append({
                 'OrderNr': order_nr,
@@ -280,7 +300,6 @@ def _get_unallocated_reason(order, feasible_df):
     order_nr = order['OrderNr']
     
     if order_nr not in feasible_df['OrderNr'].values:
-        # Ingen feasible batcher
         if order.get('RequireOrganic', False):
             return 'Ingen organic batch med gyldig vindu'
         if pd.notna(order.get('LockedSite')) and str(order.get('LockedSite')).strip():
@@ -305,7 +324,6 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
         yp = y_pos[batch['BatchID']]
         organic_label = " 🌿" if batch['Organic'] else ""
         
-        # Blå: Modning
         fig.add_trace(go.Scatter(
             x=[batch['StripDate'], batch['MaturationEnd']], y=[yp, yp],
             mode='lines', line=dict(color='#1f77b4', width=20),
@@ -313,7 +331,6 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
             hovertemplate=f"<b>{batch['BatchID']}{organic_label}</b><br>Modning<extra></extra>"
         ))
         
-        # Rød: Produksjonsvindu
         fig.add_trace(go.Scatter(
             x=[batch['MaturationEnd'], batch['ProductionEnd']], y=[yp, yp],
             mode='lines', line=dict(color='#d62728', width=20),
@@ -321,7 +338,6 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
             hovertemplate=f"<b>{batch['BatchID']}{organic_label}</b><br>Produksjon<extra></extra>"
         ))
 
-        # Grønn: Kundevindu (bruker første ordre som referanse)
         for _, order in orders_df.iterrows():
             cust_min = order['MinTemp_customer'] / WATER_TEMP_C
             cust_max = order['MaxTemp_customer'] / WATER_TEMP_C
@@ -337,7 +353,6 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
                 ))
                 break
 
-    # Lilla: Tildelinger (kun allokerte)
     if not allocated_df.empty:
         for _, alloc in allocated_df.iterrows():
             if alloc['BatchID'] == 'IKKE TILDELT':
@@ -364,7 +379,6 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
                     )
                 ))
 
-    # Legg til organic-markering på y-aksen
     y_labels = []
     for bid in batch_ids:
         batch = batches_df[batches_df['BatchID'] == bid].iloc[0]
@@ -383,20 +397,132 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
 
 
 # ==========================================
-# 6. HOVEDFUNKSJON
+# 6. EKSPORT FUNKSJONER (NY)
+# ==========================================
+def generate_example_excel():
+    """
+    Genererer eksempel Excel-fil med input-data.
+    Returnerer bytes som kan lastes ned.
+    """
+    from config import FISH_GROUPS, ORDERS
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Fiskegrupper
+        FISH_GROUPS.to_excel(writer, sheet_name='Fiskegrupper', index=False)
+        
+        # Ordrer
+        ORDERS.to_excel(writer, sheet_name='Ordrer', index=False)
+        
+        # Instruksjoner
+        instructions = pd.DataFrame({
+            'Felt': [
+                '--- FISKEGRUPPER ---',
+                'Site', 'Site_Broodst_Season', 'StrippingStartDate', 'StrippingStopDate',
+                'MinTemp_C', 'MaxTemp_C', 'Gain-eggs', 'Shield-eggs', 'Organic',
+                '',
+                '--- ORDRER ---',
+                'OrderNr', 'Customer', 'DeliveryDate', 'Product', 'Volume',
+                'MinTemp_C', 'MaxTemp_C', 'RequireOrganic',
+                'LockedSite', 'LockedGroup', 'PreferredSite', 'PreferredGroup'
+            ],
+            'Beskrivelse': [
+                '',
+                'Anleggets navn (f.eks. Hemne, Vestseøra)',
+                'Unik ID for gruppen (f.eks. Hemne_Normal_24/25)',
+                'Startdato for stripping (YYYY-MM-DD)',
+                'Sluttdato for stripping (YYYY-MM-DD)',
+                'Minimum temperatur i °C (typisk 1)',
+                'Maksimum temperatur i °C (typisk 8)',
+                'Antall Gain-egg i gruppen',
+                'Antall Shield-egg i gruppen',
+                'True/False - er gruppen organic?',
+                '',
+                '',
+                'Unik ordrenummer',
+                'Kundenavn',
+                'Ønsket leveringsdato (YYYY-MM-DD)',
+                'Produkttype: Gain eller Shield',
+                'Antall egg i ordren',
+                'Kundens min temperaturkrav (typisk 2)',
+                'Kundens max temperaturkrav (typisk 6)',
+                'True/False - krever kunden organic?',
+                'HARD: Ordre MÅ leveres fra dette anlegget (eller tom)',
+                'HARD: Ordre MÅ leveres fra denne gruppen (eller tom)',
+                'SOFT: Ordre BØR leveres fra dette anlegget (eller tom)',
+                'SOFT: Ordre BØR leveres fra denne gruppen (eller tom)'
+            ],
+            'Eksempel': [
+                '',
+                'Hemne',
+                'Hemne_Normal_24/25',
+                '2024-09-01',
+                '2024-09-28',
+                '1',
+                '8',
+                '8000000',
+                '2000000',
+                'False',
+                '',
+                '',
+                '1001',
+                'Lerøy Midt',
+                '2024-11-15',
+                'Gain',
+                '1500000',
+                '2',
+                '6',
+                'False',
+                'Hønsvikgulen',
+                '',
+                'Hemne',
+                ''
+            ]
+        })
+        instructions.to_excel(writer, sheet_name='Instruksjoner', index=False)
+    
+    output.seek(0)
+    return output.getvalue()
+
+
+def parse_uploaded_excel(contents, filename):
+    """
+    Parser opplastet Excel-fil og returnerer DataFrames.
+    """
+    import base64
+    
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    
+    try:
+        if filename.endswith('.xlsx') or filename.endswith('.xls'):
+            excel_file = io.BytesIO(decoded)
+            fish_groups = pd.read_excel(excel_file, sheet_name='Fiskegrupper')
+            orders = pd.read_excel(excel_file, sheet_name='Ordrer')
+            return fish_groups, orders, None
+        else:
+            return None, None, "Feil filformat. Bruk .xlsx eller .xls"
+    except Exception as e:
+        return None, None, f"Feil ved parsing av fil: {str(e)}"
+
+
+# ==========================================
+# 7. HOVEDFUNKSJON
 # ==========================================
 def run_allocation(fish_groups_df, orders_df):
     """Kjører hele allokeringsprosessen og returnerer resultater."""
     orders, groups = preprocess_data(orders_df, fish_groups_df)
     batches = generate_weekly_batches(groups)
     feasible = build_feasibility_set(orders, batches)
+    possible_groups = get_possible_groups_per_order(orders, feasible)
     results_df, allocated_df = solve_allocation(orders, batches, feasible)
     chart = create_gantt_chart(batches, orders, allocated_df)
     
     return {
         'batches': batches,
         'feasible': feasible,
-        'results': results_df,      # Alle ordrer (inkl. ikke-tildelte)
-        'allocated': allocated_df,   # Kun tildelte
+        'possible_groups': possible_groups,  # NY
+        'results': results_df,
+        'allocated': allocated_df,
         'chart': chart
     }

@@ -54,6 +54,17 @@ FISH_GROUPS = pd.DataFrame([
         'Shield-eggs': 1500000.0, 
         'Organic': False
     },
+    {
+        'Site': 'Hemne', 
+        'Site_Broodst_Season': 'Hemne_Organic_24/25', 
+        'StrippingStartDate': '2024-09-10', 
+        'StrippingStopDate': '2024-09-30', 
+        'MinTemp_C': 1, 
+        'MaxTemp_C': 8, 
+        'Gain-eggs': 2000000.0, 
+        'Shield-eggs': 1000000.0, 
+        'Organic': True
+    },
     # Vestseøra - Organic
     {
         'Site': 'Vestseøra', 
@@ -66,7 +77,7 @@ FISH_GROUPS = pd.DataFrame([
         'Shield-eggs': 2000000.0, 
         'Organic': True
     },
-    # Hønsvikgulen - Lerøy-dedikert
+    # Hønsvikgulen
     {
         'Site': 'Hønsvikgulen', 
         'Site_Broodst_Season': 'Hønsvikgulen_Normal_24/25', 
@@ -89,25 +100,13 @@ FISH_GROUPS = pd.DataFrame([
         'Shield-eggs': 2000000.0, 
         'Organic': False
     },
-    # Ny: Hemne Organic
-    {
-        'Site': 'Hemne', 
-        'Site_Broodst_Season': 'Hemne_Organic_24/25', 
-        'StrippingStartDate': '2024-09-10', 
-        'StrippingStopDate': '2024-09-30', 
-        'MinTemp_C': 1, 
-        'MaxTemp_C': 8, 
-        'Gain-eggs': 2000000.0, 
-        'Shield-eggs': 1000000.0, 
-        'Organic': True
-    },
 ])
 
 # ==========================================
 # ORDRER (KUNDER)
 # ==========================================
 ORDERS = pd.DataFrame([
-    # Lerøy - Store ordrer, foretrekker Hønsvikgulen
+    # Lerøy
     {
         'OrderNr': 1001, 
         'Customer': 'Lerøy Midt',
@@ -150,7 +149,7 @@ ORDERS = pd.DataFrame([
         'PreferredSite': 'Hønsvikgulen',
         'PreferredGroup': None,
     },
-    # Mowi - Flere lokasjoner
+    # Mowi
     {
         'OrderNr': 2001, 
         'Customer': 'Mowi Region Midt',
@@ -193,7 +192,7 @@ ORDERS = pd.DataFrame([
         'PreferredSite': None,
         'PreferredGroup': None,
     },
-    # SalMar - Organic-krav
+    # SalMar - Organic
     {
         'OrderNr': 3001, 
         'Customer': 'SalMar Organic',
@@ -202,7 +201,7 @@ ORDERS = pd.DataFrame([
         'Volume': 900000.0, 
         'MinTemp_C': 2, 
         'MaxTemp_C': 6,
-        'RequireOrganic': True,  # KREVER ORGANIC
+        'RequireOrganic': True,
         'LockedSite': None,
         'LockedGroup': None,
         'PreferredSite': None,
@@ -222,7 +221,7 @@ ORDERS = pd.DataFrame([
         'PreferredSite': None,
         'PreferredGroup': 'Hemne_Normal_24/25',
     },
-    # Grieg Seafood
+    # Grieg
     {
         'OrderNr': 4001, 
         'Customer': 'Grieg Seafood',
@@ -251,7 +250,7 @@ ORDERS = pd.DataFrame([
         'PreferredSite': None,
         'PreferredGroup': None,
     },
-    # NRS (Norway Royal Salmon) - Organic
+    # NRS
     {
         'OrderNr': 5001, 
         'Customer': 'NRS Organic',
@@ -260,10 +259,10 @@ ORDERS = pd.DataFrame([
         'Volume': 800000.0, 
         'MinTemp_C': 2, 
         'MaxTemp_C': 6,
-        'RequireOrganic': True,  # KREVER ORGANIC
+        'RequireOrganic': True,
         'LockedSite': None,
         'LockedGroup': None,
-        'PreferredSite': 'Hemne',  # Foretrekker Hemne Organic
+        'PreferredSite': 'Hemne',
         'PreferredGroup': None,
     },
     {
@@ -280,7 +279,7 @@ ORDERS = pd.DataFrame([
         'PreferredSite': None,
         'PreferredGroup': 'Hemne_Late_24/25',
     },
-    # Små kunder - Tidlig levering
+    # Små kunder
     {
         'OrderNr': 6001, 
         'Customer': 'Nordlaks',
@@ -303,7 +302,7 @@ ORDERS = pd.DataFrame([
         'Volume': 350000.0, 
         'MinTemp_C': 2, 
         'MaxTemp_C': 6,
-        'RequireOrganic': True,  # KREVER ORGANIC
+        'RequireOrganic': True,
         'LockedSite': None,
         'LockedGroup': None,
         'PreferredSite': 'Vestseøra',
