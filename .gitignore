@@ -1,0 +1,25 @@
+# Local data - keep locally, don't track
+new_version_for_meeting/example_data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Old versions (if kept locally)
+dash_basic_v*.py
