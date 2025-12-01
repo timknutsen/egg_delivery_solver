@@ -650,4 +650,4 @@ def run_advanced_allocation_report(n_clicks):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8051)
+    app.run(debug=True, port=8051)
