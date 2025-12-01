@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.express as px
 import pulp as pl
 from pulp import PULP_CBC_CMD
-from datetime import timedelta
+from datetime import timedelta, datetime
 import numpy as np
 import base64
 import io
@@ -14,20 +14,132 @@ from time import perf_counter
 # -------------------------------
 # CONFIGURATION
 # -------------------------------
-# Define file paths for the updated example data
 ORDERS_DATA_PATH = "new_version_for_meeting/example_data/orders_example_updated.csv"
 FISH_GROUPS_DATA_PATH = "new_version_for_meeting/example_data/fish_groups_example_updated.csv"
 
-# Define specific constraint parameters (ADJUST THESE AS NEEDED)
-ELITE_NUCLEUS_SITE = "Hemne"  # Site(s) allowed for Elite/Nucleus
-HONSVIKGULEN_SITE = "Hønsvikgulen"  # Site with customer restriction
-LEROY_CUSTOMER_PREFIX = "CUST001"  # CustomerID prefix for Lerøy companies (ASCII variable name)
+# Define specific constraint parameters
+ELITE_NUCLEUS_SITE = "Hemne"
+HONSVIKGULEN_SITE = "Hønsvikgulen"
+LEROY_CUSTOMER_PREFIX = "CUST001"
 
 # Solver options
 SOLVER_TIME_LIMIT_SECONDS = 60
 W_DUMMY = 1000.0
 W_PREF = 5.0
 W_FIFO = 0.01
+
+# Default temperature for degree-day calculations (Celsius)
+DEFAULT_WATER_TEMP = 8.0
+
+# -------------------------------
+# DEGREE-DAYS CALCULATION
+# -------------------------------
+
+def calculate_degree_days_feasibility(
+    stripping_start, stripping_stop,
+    min_temp_prod, max_temp_prod,
+    min_temp_customer, max_temp_customer,
+    delivery_date,
+    water_temp=DEFAULT_WATER_TEMP
+):
+    """
+    Determines if a delivery date is feasible based on degree-day constraints.
+    
+    Logic:
+    1. Customer requirements must fit within production limits:
+       - min_temp_customer >= min_temp_prod (roe must be ready)
+       - max_temp_customer <= max_temp_prod (roe must not be overripe)
+    
+    2. Delivery date must allow sufficient degree-day accumulation:
+       - Earliest delivery: when min_temp_customer is reached
+       - Latest delivery: before max_temp_customer is exceeded
+    
+    Args:
+        stripping_start: Date when stripping period begins
+        stripping_stop: Date when stripping period ends
+        min_temp_prod: Minimum degree-days for roe to be sellable
+        max_temp_prod: Maximum degree-days before roe becomes overripe
+        min_temp_customer: Minimum degree-days required by customer
+        max_temp_customer: Maximum degree-days accepted by customer
+        delivery_date: Requested delivery date
+        water_temp: Average water temperature (default 8°C)
+    
+    Returns:
+        bool: True if delivery is feasible, False otherwise
+    """
+    # Validate inputs
+    if pd.isna(stripping_start) or pd.isna(stripping_stop) or pd.isna(delivery_date):
+        return False
+    
+    if pd.isna(min_temp_prod) or pd.isna(max_temp_prod):
+        return False
+    
+    if pd.isna(min_temp_customer) or pd.isna(max_temp_customer):
+        return False
+    
+    # Constraint 1: Customer requirements must fit within production limits
+    if min_temp_customer < min_temp_prod:
+        return False  # Customer wants roe before it's ready
+    
+    if max_temp_customer > max_temp_prod:
+        return False  # Customer accepts roe that's already overripe
+    
+    # Calculate degree-days from stripping to delivery
+    # For eggs stripped at stripping_start, delivered at delivery_date
+    days_from_earliest_strip = (delivery_date - stripping_start).days
+    earliest_degree_days = days_from_earliest_strip * water_temp
+    
+    # For eggs stripped at stripping_stop, delivered at delivery_date
+    days_from_latest_strip = (delivery_date - stripping_stop).days
+    latest_degree_days = days_from_latest_strip * water_temp
+    
+    # If delivery is before stripping ends, use only the earliest strip date
+    if delivery_date < stripping_stop:
+        latest_degree_days = earliest_degree_days
+    
+    # Constraint 2: Delivery date must allow meeting customer requirements
+    # The earliest stripped eggs must have at least min_temp_customer
+    if earliest_degree_days < min_temp_customer:
+        return False  # Even earliest eggs won't be ready by delivery
+    
+    # The latest stripped eggs must not exceed max_temp_customer
+    if latest_degree_days > max_temp_customer:
+        return False  # Even latest eggs will be too old by delivery
+    
+    # Additional check: ensure we're within production window
+    if earliest_degree_days > max_temp_prod:
+        return False  # All eggs will be overripe by delivery
+    
+    return True
+
+
+def calculate_delivery_window_dates(
+    stripping_start, stripping_stop,
+    min_temp_prod, max_temp_prod,
+    water_temp=DEFAULT_WATER_TEMP
+):
+    """
+    Calculate the earliest and latest possible delivery dates for a fish group.
+    
+    Returns:
+        (earliest_delivery, latest_delivery): Date range for deliveries
+    """
+    if pd.isna(stripping_start) or pd.isna(stripping_stop):
+        return (pd.NaT, pd.NaT)
+    
+    if pd.isna(min_temp_prod) or pd.isna(max_temp_prod):
+        return (pd.NaT, pd.NaT)
+    
+    # Earliest delivery: min_temp_prod days after stripping starts
+    days_to_min = int(min_temp_prod / water_temp)
+    earliest_delivery = stripping_start + timedelta(days=days_to_min)
+    
+    # Latest delivery: max_temp_prod days after stripping stops
+    days_to_max = int(max_temp_prod / water_temp)
+    latest_delivery = stripping_stop + timedelta(days=days_to_max)
+    
+    return (earliest_delivery, latest_delivery)
+
 
 # -------------------------------
 # HELPER & VALIDATION FUNCTIONS
@@ -46,12 +158,11 @@ def process_organic(x):
         return False
     return False
 
+
 def validate_orders(df, valid_groups):
     """
     Validate and preprocess the orders DataFrame.
-    - Ensures required columns exist
-    - Parses dates, numbers, organic status
-    - Validates site references against valid groups
+    Now expects MinTemp_customer and MaxTemp_customer columns (degree-days).
     Returns (df, warnings)
     """
     warnings = []
@@ -59,12 +170,12 @@ def validate_orders(df, valid_groups):
         warnings.append("Orders DataFrame is empty.")
         return pd.DataFrame(columns=[
             "OrderNr","DeliveryDate","OrderStatus","CustomerID","CustomerName","Product",
-            "Organic","Volume","LockedSite","PreferredSite","MinTemp","MaxTemp"
+            "Organic","Volume","LockedSite","PreferredSite","MinTemp_customer","MaxTemp_customer"
         ]), warnings
 
     # Ensure required columns exist
     required_cols = ["OrderNr","DeliveryDate","OrderStatus","CustomerID","CustomerName","Product",
-                     "Organic","Volume","LockedSite","PreferredSite","MinTemp","MaxTemp"]
+                     "Organic","Volume","LockedSite","PreferredSite"]
     for col in required_cols:
         if col not in df.columns:
             df[col] = np.nan
@@ -88,19 +199,32 @@ def validate_orders(df, valid_groups):
     df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0)
     df["Organic"] = df["Organic"].apply(process_organic)
 
-    # Normalize temperatures; ensure sensible defaults and MinTemp <= MaxTemp
-    def normalize_temps(row):
-        tmin = pd.to_numeric(row.get("MinTemp", 7), errors="coerce")
-        tmax = pd.to_numeric(row.get("MaxTemp", 9), errors="coerce")
-        if pd.isna(tmin):
-            tmin = 7
-        if pd.isna(tmax):
-            tmax = 9
-        if tmin > tmax:
-            tmin, tmax = tmax, tmin
-        return pd.Series({"MinTemp": tmin, "MaxTemp": tmax})
+    # Handle temperature columns - support both old and new naming
+    if "MinTemp_customer" in df.columns:
+        df["MinTemp_customer"] = pd.to_numeric(df["MinTemp_customer"], errors="coerce").fillna(300)
+    elif "MinTemp" in df.columns:
+        # Convert old MinTemp (Celsius) to degree-days (rough approximation)
+        df["MinTemp_customer"] = pd.to_numeric(df["MinTemp"], errors="coerce").fillna(7) * 50
+        warnings.append("Note: Converted MinTemp (°C) to MinTemp_customer (degree-days) using approximation (temp × 50)")
+    else:
+        df["MinTemp_customer"] = 300
+        warnings.append("Orders: MinTemp_customer not found. Using default value of 300 degree-days.")
+    
+    if "MaxTemp_customer" in df.columns:
+        df["MaxTemp_customer"] = pd.to_numeric(df["MaxTemp_customer"], errors="coerce").fillna(500)
+    elif "MaxTemp" in df.columns:
+        # Convert old MaxTemp (Celsius) to degree-days (rough approximation)
+        df["MaxTemp_customer"] = pd.to_numeric(df["MaxTemp"], errors="coerce").fillna(9) * 50
+        warnings.append("Note: Converted MaxTemp (°C) to MaxTemp_customer (degree-days) using approximation (temp × 50)")
+    else:
+        df["MaxTemp_customer"] = 500
+        warnings.append("Orders: MaxTemp_customer not found. Using default value of 500 degree-days.")
 
-    df[["MinTemp", "MaxTemp"]] = df.apply(normalize_temps, axis=1)
+    # Ensure MinTemp_customer <= MaxTemp_customer
+    swap_mask = df["MinTemp_customer"] > df["MaxTemp_customer"]
+    if swap_mask.any():
+        df.loc[swap_mask, ["MinTemp_customer", "MaxTemp_customer"]] = df.loc[swap_mask, ["MaxTemp_customer", "MinTemp_customer"]].values
+        warnings.append(f"Orders: Swapped {swap_mask.sum()} rows where MinTemp_customer > MaxTemp_customer")
 
     # Update site references to use group keys
     def map_site_to_group(site_value):
@@ -114,7 +238,6 @@ def validate_orders(df, valid_groups):
         if site_str in valid_group_keys and valid_group_keys[site_str]:
             return valid_group_keys[site_str][0]
         # Otherwise, it's invalid
-        warnings.append(f"Orders: Site value '{site_str}' not found in valid sites or group keys (set empty).")
         return ""
 
     df["LockedSite"] = df["LockedSite"].apply(map_site_to_group)
@@ -132,11 +255,11 @@ def validate_orders(df, valid_groups):
     df["OrderStatus"] = df["OrderStatus"].fillna("Aktiv")
     return df, warnings
 
+
 def validate_fish_groups(df):
     """
     Validate and preprocess the fish_groups DataFrame.
-    - Parses dates, numbers, organic status
-    - Ensures required columns exist
+    Now expects MinTemp_prod and MaxTemp_prod columns (degree-days).
     Returns (df, warnings)
     """
     warnings = []
@@ -144,7 +267,7 @@ def validate_fish_groups(df):
         warnings.append("Fish Groups DataFrame is empty.")
         return pd.DataFrame(columns=[
             "Site","Site_Broodst_Season","StrippingStartDate","StrippingStopDate","SalesStartDate","SalesStopDate",
-            "Gain-eggs","Shield-eggs","Organic"
+            "MinTemp_prod","MaxTemp_prod","Gain-eggs","Shield-eggs","Organic"
         ]), warnings
 
     df = df.copy()
@@ -170,6 +293,24 @@ def validate_fish_groups(df):
     date_columns = ["StrippingStartDate", "StrippingStopDate", "SalesStartDate", "SalesStopDate"]
     for col in date_columns:
         df[col] = pd.to_datetime(df[col], errors="coerce")
+
+    # Handle degree-day columns
+    if "MinTemp_prod" in df.columns:
+        df["MinTemp_prod"] = pd.to_numeric(df["MinTemp_prod"], errors="coerce").fillna(300)
+    else:
+        df["MinTemp_prod"] = 300
+        warnings.append("Fish groups: MinTemp_prod not found. Using default value of 300 degree-days.")
+    
+    if "MaxTemp_prod" in df.columns:
+        df["MaxTemp_prod"] = pd.to_numeric(df["MaxTemp_prod"], errors="coerce").fillna(500)
+    else:
+        df["MaxTemp_prod"] = 500
+        warnings.append("Fish groups: MaxTemp_prod not found. Using default value of 500 degree-days.")
+    
+    # Validate degree-day constraints
+    invalid = df[df["MinTemp_prod"] >= df["MaxTemp_prod"]]
+    if not invalid.empty:
+        warnings.append(f"Fish groups: {len(invalid)} groups have MinTemp_prod >= MaxTemp_prod. These may cause issues.")
 
     # Ensure numeric columns exist and are numeric
     df["Gain-eggs"] = pd.to_numeric(df["Gain-eggs"], errors="coerce").fillna(0)
@@ -200,27 +341,6 @@ def validate_fish_groups(df):
 
     return df, warnings
 
-# -------------------------------
-# DELIVERY WINDOW CALCULATION (PLACEHOLDER)
-# -------------------------------
-
-def calculate_delivery_window(stripping_start, stripping_stop, min_temp, max_temp):
-    """
-    PLACEHOLDER: Calculates the valid delivery window based on stripping dates and temperature.
-    TODO: Replace this with the actual logic from the Klekkekalulator Excel files.
-    """
-    if pd.isna(stripping_start) or pd.isna(stripping_stop):
-        return (pd.NaT, pd.NaT)
-
-    # Rough approximation of degree-days to hatch
-    degree_days = 350  # Example value
-    min_days = int(degree_days / max_temp) if max_temp and max_temp > 0 else 50  # Fast development
-    max_days = int(degree_days / min_temp) if min_temp and min_temp > 0 else 90  # Slow development
-
-    delivery_start = stripping_start + timedelta(days=min_days)
-    delivery_stop = stripping_stop + timedelta(days=max_days)
-
-    return (delivery_start, delivery_stop)
 
 # -------------------------------
 # PARSE UPLOADED FILE CONTENT
@@ -256,6 +376,7 @@ def parse_contents(contents, filename, content_type=None):
     except Exception as e:
         return None, [f"Error parsing file {filename}: {e}"]
 
+
 # -------------------------------
 # DATA LOADING FUNCTION (Example Data)
 # -------------------------------
@@ -268,7 +389,7 @@ def load_validated_data():
         orders_df = pd.DataFrame({
             "OrderNr": [], "DeliveryDate": [], "OrderStatus": [], "CustomerID": [],
             "CustomerName": [], "Product": [], "Organic": [], "Volume": [],
-            "LockedSite": [], "PreferredSite": [], "MinTemp": [], "MaxTemp": []
+            "LockedSite": [], "PreferredSite": [], "MinTemp_customer": [], "MaxTemp_customer": []
         })
         orders_warnings.append(f"Error loading {ORDERS_DATA_PATH}: {e}")
 
@@ -278,6 +399,7 @@ def load_validated_data():
         fish_groups_df = pd.DataFrame({
             "Site": [], "Site_Broodst_Season": [], "StrippingStartDate": [],
             "StrippingStopDate": [], "SalesStartDate": [], "SalesStopDate": [],
+            "MinTemp_prod": [], "MaxTemp_prod": [],
             "Gain-eggs": [], "Shield-eggs": [], "Organic": []
         })
         groups_warnings.append(f"Error loading {FISH_GROUPS_DATA_PATH}: {e}")
@@ -289,24 +411,28 @@ def load_validated_data():
     warnings = orders_warnings + groups_warnings + val_w_groups + val_w_orders
     return orders_df, fish_groups_df, warnings
 
+
 # -------------------------------
 # SOLVER HELPERS
 # -------------------------------
 
 def build_feasible_pairs(active_orders, all_fish_groups):
+    """Build feasible assignment pairs using degree-days constraints."""
     feasible = {i: set() for i in active_orders.index}
     dummy_idx_list = all_fish_groups[all_fish_groups["Site"] == "Dummy"].index
     if dummy_idx_list.empty:
         raise RuntimeError("Dummy group not found in all_fish_groups.")
     dummy_j = dummy_idx_list[0]
 
+    constraints_applied = 0
+
     for i in active_orders.index:
         ddate = active_orders.loc[i, "DeliveryDate"]
         org_req = bool(active_orders.loc[i, "Organic"])
         product = str(active_orders.loc[i, "Product"])
         locked = str(active_orders.loc[i, "LockedSite"] or "").strip()
-        min_temp = float(active_orders.loc[i, "MinTemp"])
-        max_temp = float(active_orders.loc[i, "MaxTemp"])
+        min_temp_customer = float(active_orders.loc[i, "MinTemp_customer"])
+        max_temp_customer = float(active_orders.loc[i, "MaxTemp_customer"])
         cust_id = str(active_orders.loc[i, "CustomerID"] or "")
 
         # Always allow Dummy so every order is assignable
@@ -333,24 +459,33 @@ def build_feasible_pairs(active_orders, all_fish_groups):
             if row["Site"] == HONSVIKGULEN_SITE and not cust_id.startswith(LEROY_CUSTOMER_PREFIX):
                 continue
 
-            # Temperature window
-            delivery_start, delivery_stop = calculate_delivery_window(
-                row["StrippingStartDate"], row["StrippingStopDate"], min_temp, max_temp
+            # DEGREE-DAYS CONSTRAINT (NEW!)
+            is_feasible = calculate_degree_days_feasibility(
+                row["StrippingStartDate"], row["StrippingStopDate"],
+                row["MinTemp_prod"], row["MaxTemp_prod"],
+                min_temp_customer, max_temp_customer,
+                ddate
             )
-            if pd.isna(ddate) or pd.isna(delivery_start) or pd.isna(delivery_stop) or not (delivery_start <= ddate <= delivery_stop):
+            
+            if not is_feasible:
+                constraints_applied += 1
                 continue
 
             feasible[i].add(j)
+    
+    print(f"Applied {constraints_applied} degree-days exclusion constraints during feasibility building")
     return feasible
 
+
 def diagnose_dummy(order_row, fish_groups):
+    """Diagnose why an order was assigned to Dummy."""
     reasons = []
     ddate = order_row.get("DeliveryDate")
     org_req = bool(order_row.get("Organic"))
     product = str(order_row.get("Product"))
     locked = str(order_row.get("LockedSite") or "").strip()
-    min_temp = float(order_row.get("MinTemp"))
-    max_temp = float(order_row.get("MaxTemp"))
+    min_temp_customer = float(order_row.get("MinTemp_customer", 300))
+    max_temp_customer = float(order_row.get("MaxTemp_customer", 500))
     cust_id = str(order_row.get("CustomerID") or "")
 
     any_group = False
@@ -374,8 +509,15 @@ def diagnose_dummy(order_row, fish_groups):
         if row["Site"] == HONSVIKGULEN_SITE and not cust_id.startswith(LEROY_CUSTOMER_PREFIX):
             continue
         customer_ok = True
-        ds, de = calculate_delivery_window(row["StrippingStartDate"], row["StrippingStopDate"], min_temp, max_temp)
-        if pd.isna(ddate) or pd.isna(ds) or pd.isna(de) or not (ds <= ddate <= de):
+        
+        # Check degree-days feasibility
+        is_feasible = calculate_degree_days_feasibility(
+            row["StrippingStartDate"], row["StrippingStopDate"],
+            row["MinTemp_prod"], row["MaxTemp_prod"],
+            min_temp_customer, max_temp_customer,
+            ddate
+        )
+        if not is_feasible:
             continue
         temp_ok = True
         # If reached, there is at least one feasible group -> capacity must be limiting
@@ -392,16 +534,16 @@ def diagnose_dummy(order_row, fish_groups):
     if not customer_ok:
         reasons.append(f"Customer restriction for site {HONSVIKGULEN_SITE}")
     if not temp_ok:
-        reasons.append("No groups within temperature delivery window")
+        reasons.append("No groups within degree-days delivery window")
     return "; ".join(reasons) if reasons else "No feasible group"
+
 
 # -------------------------------
 # SOLVER FUNCTION
 # -------------------------------
 def solve_egg_allocation(orders, fish_groups):
     """
-    Solves the egg allocation problem using PuLP with feasibility pruning and
-    a composite objective (dummy penalty, preferred-site penalty, FIFO).
+    Solves the egg allocation problem using PuLP with degree-days constraints.
     """
     # Create working copies
     orders = orders.copy()
@@ -421,6 +563,7 @@ def solve_egg_allocation(orders, fish_groups):
         )
         final_capacity = capacity[[
             "Site_Broodst_Season", "Site", "SalesStartDate", "SalesStopDate",
+            "MinTemp_prod", "MaxTemp_prod",
             "Gain-eggs", "Shield-eggs", "Organic", "GainEggsUsed", "ShieldEggsUsed",
             "TotalEggsUsed", "GainEggsRemaining", "ShieldEggsRemaining", "TotalEggsRemaining"
         ]]
@@ -431,11 +574,13 @@ def solve_egg_allocation(orders, fish_groups):
         "GroupKey": ["Dummy"], "Site": ["Dummy"], "Site_Broodst_Season": ["Dummy"],
         "StrippingStartDate": [pd.Timestamp("2000-01-01")], "StrippingStopDate": [pd.Timestamp("2100-12-31")],
         "SalesStartDate": [pd.Timestamp("2000-01-01")], "SalesStopDate": [pd.Timestamp("2100-12-31")],
+        "MinTemp_prod": [0], "MaxTemp_prod": [10000],
         "Gain-eggs": [float("inf")], "Shield-eggs": [float("inf")], "Organic": [True]
     })
     all_fish_groups = pd.concat([fish_groups, dummy_group], ignore_index=True)
 
-    # Build feasible pairs and decision vars only for them
+    # Build feasible pairs with degree-days constraints
+    print("Building feasible pairs with degree-days constraints...")
     feasible = build_feasible_pairs(active_orders, all_fish_groups)
     prob = pl.LpProblem("FishEggAllocation", pl.LpMinimize)
     x = {(i, j): pl.LpVariable(f"x_{i}_{j}", cat="Binary") for i in active_orders.index for j in feasible[i]}
@@ -488,6 +633,7 @@ def solve_egg_allocation(orders, fish_groups):
         PULP_CBC_CMD(msg=False, timeLimit=SOLVER_TIME_LIMIT_SECONDS).solve(prob)
         solve_time = perf_counter() - start
         solver_status = pl.LpStatus[prob.status]
+        print(f"Solver completed: {solver_status} in {solve_time:.2f}s")
     except Exception as e:
         solver_status = f"Error: {e}"
         solve_time = 0.0
@@ -500,7 +646,7 @@ def solve_egg_allocation(orders, fish_groups):
     # Track usage
     gain_used = {j: 0.0 for j in all_fish_groups.index}
     shield_used = {j: 0.0 for j in all_fish_groups.index}
-    elite_used = {j: 0.0 for j in all_fish_groups.index}  # Track Elite/Nucleus separately
+    elite_used = {j: 0.0 for j in all_fish_groups.index}
 
     for i in results.index:
         assigned_j = None
@@ -572,6 +718,7 @@ def solve_egg_allocation(orders, fish_groups):
 
     final_capacity = capacity[[
         "Site_Broodst_Season", "Site", "SalesStartDate", "SalesStopDate",
+        "MinTemp_prod", "MaxTemp_prod",
         "Gain-eggs", "Shield-eggs", "Organic", "GainEggsUsed", "ShieldEggsUsed",
         "TotalEggsUsed", "GainEggsRemaining", "ShieldEggsRemaining", "TotalEggsRemaining"
     ]].copy()
@@ -594,6 +741,7 @@ def solve_egg_allocation(orders, fish_groups):
         "remaining_capacity": final_capacity,
         "summary": summary
     }
+
 
 # -------------------------------
 # VISUALIZATION FUNCTIONS
@@ -649,7 +797,7 @@ def create_buffer_graph(remaining, results, selected_groups=None):
     buffer_df = pd.DataFrame(buffer_data)
     fig = px.line(
         buffer_df, x="Week", y="RemainingCapacity", color="Group",
-        title="Weekly Inventory Buffer by Fish Group", markers=True
+        title="Weekly Inventory Buffer by Fish Group (Degree-Days Model)", markers=True
     )
     fig.update_layout(
         xaxis_title="Week", yaxis_title="Remaining Capacity (Millions)",
@@ -659,6 +807,7 @@ def create_buffer_graph(remaining, results, selected_groups=None):
     fig.update_yaxes(tickformat=".2f")
     fig.update_traces(line=dict(width=3), marker=dict(size=8))
     return fig
+
 
 def get_table_style():
     """Enhanced styling for tables."""
@@ -690,6 +839,7 @@ def get_table_style():
         ]
     }
 
+
 def build_order_columns_schema(group_keys):
     """Columns schema for order table with dropdowns and types."""
     group_keys = sorted([g for g in group_keys if isinstance(g, str)]) if group_keys is not None else []
@@ -704,22 +854,24 @@ def build_order_columns_schema(group_keys):
         {"name": "DeliveryDate", "id": "DeliveryDate", "type": "datetime"},
         {"name": "LockedSite", "id": "LockedSite", "presentation": "dropdown"},
         {"name": "PreferredSite", "id": "PreferredSite", "presentation": "dropdown"},
-        {"name": "MinTemp", "id": "MinTemp", "type": "numeric"},
-        {"name": "MaxTemp", "id": "MaxTemp", "type": "numeric"},
+        {"name": "MinTemp_customer", "id": "MinTemp_customer", "type": "numeric"},
+        {"name": "MaxTemp_customer", "id": "MaxTemp_customer", "type": "numeric"},
     ]
     return order_columns
+
 
 def build_order_dropdowns(group_keys):
     product_options = ["Gain", "Shield", "Elite", "Nucleus"]
     group_options = [{"label": x, "value": x} for x in sorted([g for g in group_keys if isinstance(g, str)])]
     dropdowns = {
-        "OrderStatus": {"options": [{"label": x, "value": x} for x in ["Aktiv", "Kansellert"]]},
+        "OrderStatus": {"options": [{"label": x, "value": x} for x in ["Aktiv", "Bekreftet", "Planlagt", "Kansellert"]]},
         "Product": {"options": [{"label": x, "value": x} for x in product_options]},
         "Organic": {"options": [{"label": "Yes", "value": True}, {"label": "No", "value": False}]},
         "LockedSite": {"options": group_options},
         "PreferredSite": {"options": [{"label": "", "value": ""}] + group_options},
     }
     return dropdowns
+
 
 # -------------------------------
 # INITIAL DATA LOAD (Example Data)
@@ -730,9 +882,10 @@ orders_data, fish_groups_data, initial_warnings = load_validated_data()
 # DASH APP SETUP
 # -------------------------------
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.FLATLY])
+app.title = "Fish Egg Allocation Solver - Degree-Days Model"
 
 app.layout = dbc.Container([
-    html.H1("Fish Egg Allocation Solver", className="text-center my-4 py-3 bg-primary text-white rounded"),
+    html.H1("Fish Egg Allocation Solver (Degree-Days Model)", className="text-center my-4 py-3 bg-primary text-white rounded"),
     dbc.Row([
         dbc.Col([
             dcc.RadioItems(
@@ -797,18 +950,28 @@ app.layout = dbc.Container([
         dbc.Col([
             html.H3("Problem Description & Constraints", className="mt-4"),
             dcc.Markdown("""
-                ### Overview
-                This application allocates customer orders to fish egg groups while respecting capacity limits and special requirements.
+                ### Overview (Degree-Days Model)
+                This application allocates customer orders to fish egg groups using **degree-days** for temperature tracking.
 
-                Key constraints:
+                **Key Changes:**
+                - **MinTemp_customer / MaxTemp_customer**: Degree-days required/accepted by customer
+                - **MinTemp_prod / MaxTemp_prod**: Degree-days when roe is sellable/overripe
+                - Delivery feasibility calculated using degree-day accumulation
+
+                **Constraints:**
                 - Each active order assigned once
                 - Gain uses Gain capacity; Shield uses Shield plus leftover Gain
-                - Delivery date must be within temperature-based window
+                - **Delivery date must allow degree-day requirements to be met**
                 - Organic orders only to organic groups
                 - Locked group must be used
                 - Elite/Nucleus only from Hemne
                 - Hønsvikgulen delivers only to Lerøy customers
                 - FIFO preference (earlier stripping stop favored)
+                
+                **Degree-Days Logic:**
+                - Customer requirements must fit within production limits
+                - Delivery date must allow sufficient time for degree-day accumulation
+                - Default water temperature: 8°C
             """, className="p-3 bg-light rounded"),
             dbc.Alert(id="validation-alert", color="warning", is_open=bool(initial_warnings),
                       children="; ".join(initial_warnings) if initial_warnings else "", duration=9000, className="mt-2"),
@@ -900,15 +1063,13 @@ def update_order_table(uploaded_contents, data_source, n_clicks, current_data, f
                 df_valid, _ = validate_orders(df, fg_valid)
                 return df_valid.to_dict("records"), columns_schema
         else:
-            odf = pd.read_csv(ORDERS_DATA_PATH)
-            fg_valid, _ = validate_fish_groups(fg_df)
-            odf_valid, _ = validate_orders(odf, fg_valid)
-            return odf_valid.to_dict("records"), columns_schema
+            odf, _, _ = load_validated_data()
+            return odf.to_dict("records"), columns_schema
     elif triggered_id == "add-order-row-button" and n_clicks > 0:
         new_row = {
             "OrderNr": "", "OrderStatus": "Aktiv", "CustomerID": "", "CustomerName": "",
             "Product": "Gain", "Organic": False, "Volume": 0, "DeliveryDate": "",
-            "LockedSite": "", "PreferredSite": "", "MinTemp": 7, "MaxTemp": 9,
+            "LockedSite": "", "PreferredSite": "", "MinTemp_customer": 300, "MaxTemp_customer": 500,
         }
         table_data = table_data + [new_row]
 
@@ -931,13 +1092,15 @@ def update_fish_group_table(uploaded_contents, data_source, n_clicks, current_da
         if data_source == "upload" and uploaded_contents is not None:
             df, _ = parse_contents(uploaded_contents, filename)
             if df is not None:
-                return df.to_dict("records")
+                df_valid, _ = validate_fish_groups(df)
+                return df_valid.to_dict("records")
         else:
-            fish_groups_df = pd.read_csv(FISH_GROUPS_DATA_PATH)
+            _, fish_groups_df, _ = load_validated_data()
             return fish_groups_df.to_dict("records")
     elif triggered_id == "add-fish-group-row-button" and n_clicks > 0:
         if not table_data:
-            columns = pd.read_csv(FISH_GROUPS_DATA_PATH).columns
+            _, fish_groups_df, _ = load_validated_data()
+            columns = fish_groups_df.columns
             new_row = {col: "" for col in columns}
         else:
             new_row = {col: "" for col in table_data[0].keys()}
@@ -980,9 +1143,9 @@ def update_results(n_clicks, order_data, fish_group_data, selected_groups):
 
         fig = create_buffer_graph(capacity_df, results_df, selected_groups=filter_value)
         button_text = f"Solve Allocation Problem (Status: {status})"
-        alert_text = "; ".join(warnings) if warnings else ""
-        alert_open = bool(warnings)
-        alert_color = "warning"
+        alert_text = "; ".join(warnings) if warnings else "Optimization completed successfully!"
+        alert_open = True
+        alert_color = "warning" if warnings else "success"
 
         sumd = solution.get("summary", {})
         summary_children = html.Ul([
@@ -1011,7 +1174,7 @@ def update_results(n_clicks, order_data, fish_group_data, selected_groups):
 def export_results_csv(n_clicks, results_data):
     if n_clicks:
         df = pd.DataFrame(results_data)
-        return dcc.send_data_frame(df.to_csv, "solver_results.csv", index=False)
+        return dcc.send_data_frame(df.to_csv, "solver_results_degree_days.csv", index=False)
     return None
 
 @app.callback(
@@ -1031,7 +1194,7 @@ def export_results_excel(n_clicks, results_data, capacity_data):
                 results_df.to_excel(writer, sheet_name="Results", index=False)
                 capacity_df.to_excel(writer, sheet_name="Capacity", index=False)
 
-        return dcc.send_bytes(to_excel, "solver_output.xlsx")
+        return dcc.send_bytes(to_excel, "solver_output_degree_days.xlsx")
     return None
 
 # -------------------------------
@@ -1042,5 +1205,5 @@ if __name__ == "__main__":
     port = int(os.environ.get('PORT', 8050))
     host = '0.0.0.0'
     debug = os.environ.get('DEBUG', 'True').lower() == 'true'
-    print(f"Starting server on {host}:{port} with debug={debug}")
+    print(f"Starting Degree-Days Model server on {host}:{port} with debug={debug}")
     app.run(host=host, port=port, debug=debug)

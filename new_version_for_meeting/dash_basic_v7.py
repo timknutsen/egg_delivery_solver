@@ -1,4 +1,4 @@
-## new_version_for_meeting/dash_basic_v4_updated.py 
+## new_version_for_meeting/dash_basic_v6_FIXED_UI.py 
 import dash
 from dash import dcc, html, dash_table, Input, Output, State
 import dash_bootstrap_components as dbc
@@ -11,6 +11,7 @@ import numpy as np
 import base64
 import io
 from time import perf_counter
+import math
 
 # -------------------------------
 # CONFIGURATION
@@ -33,7 +34,7 @@ W_FIFO = 0.01
 DEFAULT_WATER_TEMP = 8.0
 
 # -------------------------------
-# DEGREE-DAYS CALCULATION
+# DEGREE-DAYS CALCULATION (FIXED)
 # -------------------------------
 
 def calculate_degree_days_feasibility(
@@ -44,29 +45,19 @@ def calculate_degree_days_feasibility(
     water_temp=DEFAULT_WATER_TEMP
 ):
     """
-    Determines if a delivery date is feasible based on degree-day constraints.
+    🔴 FIXED: Determines if a delivery date is feasible based on degree-day constraints.
     
-    Logic:
+    CORRECTED Logic:
     1. Customer requirements must fit within production limits:
        - min_temp_customer >= min_temp_prod (roe must be ready)
        - max_temp_customer <= max_temp_prod (roe must not be overripe)
     
     2. Delivery date must allow sufficient degree-day accumulation:
-       - Earliest delivery: when min_temp_customer is reached
-       - Latest delivery: before max_temp_customer is exceeded
+       - LATEST stripped eggs must reach min_temp_customer
+       - EARLIEST stripped eggs must not exceed max_temp_customer
     
-    Args:
-        stripping_start: Date when stripping period begins
-        stripping_stop: Date when stripping period ends
-        min_temp_prod: Minimum degree-days for roe to be sellable
-        max_temp_prod: Maximum degree-days before roe becomes overripe
-        min_temp_customer: Minimum degree-days required by customer
-        max_temp_customer: Maximum degree-days accepted by customer
-        delivery_date: Requested delivery date
-        water_temp: Average water temperature (default 8°C)
-    
-    Returns:
-        bool: True if delivery is feasible, False otherwise
+    Key insight: The valid delivery window is when ALL eggs in the batch
+    meet both production and customer requirements simultaneously.
     """
     # Validate inputs
     if pd.isna(stripping_start) or pd.isna(stripping_stop) or pd.isna(delivery_date):
@@ -80,36 +71,35 @@ def calculate_degree_days_feasibility(
     
     # Constraint 1: Customer requirements must fit within production limits
     if min_temp_customer < min_temp_prod:
-        return False  # Customer wants roe before it's ready
+        return False
     
     if max_temp_customer > max_temp_prod:
-        return False  # Customer accepts roe that's already overripe
+        return False
     
-    # Calculate degree-days from stripping to delivery
-    # For eggs stripped at stripping_start, delivered at delivery_date
+    # 🔴 FIXED: Correct degree-day accumulation logic
     days_from_earliest_strip = (delivery_date - stripping_start).days
-    earliest_degree_days = days_from_earliest_strip * water_temp
-    
-    # For eggs stripped at stripping_stop, delivered at delivery_date
     days_from_latest_strip = (delivery_date - stripping_stop).days
-    latest_degree_days = days_from_latest_strip * water_temp
     
-    # If delivery is before stripping ends, use only the earliest strip date
+    # Handle delivery before stripping period ends
     if delivery_date < stripping_stop:
-        latest_degree_days = earliest_degree_days
+        return False
     
-    # Constraint 2: Delivery date must allow meeting customer requirements
-    # The earliest stripped eggs must have at least min_temp_customer
-    if earliest_degree_days < min_temp_customer:
-        return False  # Even earliest eggs won't be ready by delivery
+    earliest_eggs_dd = days_from_earliest_strip * water_temp
+    latest_eggs_dd = days_from_latest_strip * water_temp
     
-    # The latest stripped eggs must not exceed max_temp_customer
-    if latest_degree_days > max_temp_customer:
-        return False  # Even latest eggs will be too old by delivery
+    # 🔴 FIXED: Constraint 2 - ALL eggs must meet customer requirements
+    if latest_eggs_dd < min_temp_customer:
+        return False
     
-    # Additional check: ensure we're within production window
-    if earliest_degree_days > max_temp_prod:
-        return False  # All eggs will be overripe by delivery
+    if earliest_eggs_dd > max_temp_customer:
+        return False
+    
+    # 🔴 FIXED: Constraint 3 - ALL eggs must still be within production quality window
+    if latest_eggs_dd < min_temp_prod:
+        return False
+    
+    if earliest_eggs_dd > max_temp_prod:
+        return False
     
     return True
 
@@ -120,10 +110,13 @@ def calculate_delivery_window_dates(
     water_temp=DEFAULT_WATER_TEMP
 ):
     """
-    Calculate the earliest and latest possible delivery dates for a fish group.
+    🔴 FIXED: Calculate the earliest and latest possible delivery dates for a fish group.
     
-    Returns:
-        (earliest_delivery, latest_delivery): Date range for deliveries
+    CORRECTED Logic:
+    - Earliest delivery: when LATEST (youngest) stripped eggs reach min_temp_prod
+    - Latest delivery: when EARLIEST (oldest) stripped eggs reach max_temp_prod
+    
+    This ensures ALL eggs in the batch are within the sellable quality window.
     """
     if pd.isna(stripping_start) or pd.isna(stripping_stop):
         return (pd.NaT, pd.NaT)
@@ -131,45 +124,45 @@ def calculate_delivery_window_dates(
     if pd.isna(min_temp_prod) or pd.isna(max_temp_prod):
         return (pd.NaT, pd.NaT)
     
-    # Earliest delivery: min_temp_prod days after stripping starts
-    days_to_min = int(min_temp_prod / water_temp)
-    earliest_delivery = stripping_start + timedelta(days=days_to_min)
+    if min_temp_prod >= max_temp_prod:
+        return (pd.NaT, pd.NaT)
     
-    # Latest delivery: max_temp_prod days after stripping stops
+    # 🔴 FIXED: Earliest delivery = when YOUNGEST eggs (stripped last) are ready
+    days_to_min = math.ceil(min_temp_prod / water_temp)
+    earliest_delivery = stripping_stop + timedelta(days=days_to_min)
+    
+    # 🔴 FIXED: Latest delivery = when OLDEST eggs (stripped first) become overripe
     days_to_max = int(max_temp_prod / water_temp)
-    latest_delivery = stripping_stop + timedelta(days=days_to_max)
+    latest_delivery = stripping_start + timedelta(days=days_to_max)
+    
+    # 🔴 FIXED: Validate that window is possible
+    if earliest_delivery > latest_delivery:
+        return (pd.NaT, pd.NaT)
     
     return (earliest_delivery, latest_delivery)
 
 
 def add_delivery_windows(fish_groups, water_temp=DEFAULT_WATER_TEMP):
     """
-    Add delivery window columns (EarliestDelivery and LatestDelivery) to fish groups DataFrame.
-    
-    Args:
-        fish_groups: DataFrame with fish group data
-        water_temp: Water temperature for calculations (default 8°C)
-    
-    Returns:
-        DataFrame with added EarliestDelivery and LatestDelivery columns
+    🔴 FIXED: Add delivery window columns to fish groups DataFrame.
     """
     df = fish_groups.copy()
     
-    # Calculate earliest delivery date
-    df['EarliestDelivery'] = df.apply(
-        lambda row: row['StrippingStartDate'] + timedelta(
-            days=int(row['MinTemp_prod'] / water_temp)
-        ) if pd.notna(row['StrippingStartDate']) and pd.notna(row['MinTemp_prod']) else pd.NaT,
+    windows = df.apply(
+        lambda row: calculate_delivery_window_dates(
+            row['StrippingStartDate'],
+            row['StrippingStopDate'],
+            row['MinTemp_prod'],
+            row['MaxTemp_prod'],
+            water_temp
+        ) if pd.notna(row['StrippingStartDate']) and pd.notna(row['StrippingStopDate']) 
+            and pd.notna(row['MinTemp_prod']) and pd.notna(row['MaxTemp_prod'])
+        else (pd.NaT, pd.NaT),
         axis=1
     )
     
-    # Calculate latest delivery date
-    df['LatestDelivery'] = df.apply(
-        lambda row: row['StrippingStopDate'] + timedelta(
-            days=int(row['MaxTemp_prod'] / water_temp)
-        ) if pd.notna(row['StrippingStopDate']) and pd.notna(row['MaxTemp_prod']) else pd.NaT,
-        axis=1
-    )
+    df['EarliestDelivery'] = windows.apply(lambda x: x[0])
+    df['LatestDelivery'] = windows.apply(lambda x: x[1])
     
     return df
 
@@ -206,7 +199,6 @@ def validate_orders(df, valid_groups):
             "Organic","Volume","LockedSite","PreferredSite","MinTemp_customer","MaxTemp_customer"
         ]), warnings
 
-    # Ensure required columns exist
     required_cols = ["OrderNr","DeliveryDate","OrderStatus","CustomerID","CustomerName","Product",
                      "Organic","Volume","LockedSite","PreferredSite"]
     for col in required_cols:
@@ -214,7 +206,6 @@ def validate_orders(df, valid_groups):
             df[col] = np.nan
             warnings.append(f"Orders: Missing column '{col}' added with defaults.")
 
-    # Convert to valid group keys dictionary for easy lookup
     valid_group_keys = {}
     for _, row in valid_groups.iterrows():
         site = row.get("Site", "")
@@ -227,16 +218,14 @@ def validate_orders(df, valid_groups):
 
     df = df.copy()
 
-    # Convert data types
     df["DeliveryDate"] = pd.to_datetime(df["DeliveryDate"], errors="coerce")
     df["Volume"] = pd.to_numeric(df["Volume"], errors="coerce").fillna(0)
     df["Organic"] = df["Organic"].apply(process_organic)
 
-    # Handle temperature columns - support both old and new naming
+    # Handle temperature columns
     if "MinTemp_customer" in df.columns:
         df["MinTemp_customer"] = pd.to_numeric(df["MinTemp_customer"], errors="coerce").fillna(300)
     elif "MinTemp" in df.columns:
-        # Convert old MinTemp (Celsius) to degree-days (rough approximation)
         df["MinTemp_customer"] = pd.to_numeric(df["MinTemp"], errors="coerce").fillna(7) * 50
         warnings.append("Note: Converted MinTemp (°C) to MinTemp_customer (degree-days) using approximation (temp × 50)")
     else:
@@ -246,37 +235,30 @@ def validate_orders(df, valid_groups):
     if "MaxTemp_customer" in df.columns:
         df["MaxTemp_customer"] = pd.to_numeric(df["MaxTemp_customer"], errors="coerce").fillna(500)
     elif "MaxTemp" in df.columns:
-        # Convert old MaxTemp (Celsius) to degree-days (rough approximation)
         df["MaxTemp_customer"] = pd.to_numeric(df["MaxTemp"], errors="coerce").fillna(9) * 50
         warnings.append("Note: Converted MaxTemp (°C) to MaxTemp_customer (degree-days) using approximation (temp × 50)")
     else:
         df["MaxTemp_customer"] = 500
         warnings.append("Orders: MaxTemp_customer not found. Using default value of 500 degree-days.")
 
-    # Ensure MinTemp_customer <= MaxTemp_customer
     swap_mask = df["MinTemp_customer"] > df["MaxTemp_customer"]
     if swap_mask.any():
         df.loc[swap_mask, ["MinTemp_customer", "MaxTemp_customer"]] = df.loc[swap_mask, ["MaxTemp_customer", "MinTemp_customer"]].values
         warnings.append(f"Orders: Swapped {swap_mask.sum()} rows where MinTemp_customer > MaxTemp_customer")
 
-    # Update site references to use group keys
     def map_site_to_group(site_value):
         if pd.isnull(site_value) or str(site_value).strip() == "":
             return ""
         site_str = str(site_value).strip()
-        # If it's already a full group key, verify it exists
         if any(site_str == group_key for groups in valid_group_keys.values() for group_key in groups):
             return site_str
-        # If it's a site name, try to find the first matching group key
         if site_str in valid_group_keys and valid_group_keys[site_str]:
             return valid_group_keys[site_str][0]
-        # Otherwise, it's invalid
         return ""
 
     df["LockedSite"] = df["LockedSite"].apply(map_site_to_group)
     df["PreferredSite"] = df["PreferredSite"].apply(map_site_to_group)
 
-    # Remove rows with invalid critical data
     initial_count = len(df)
     df = df.dropna(subset=["DeliveryDate"])
     df = df[df["Volume"] > 0]
@@ -284,7 +266,6 @@ def validate_orders(df, valid_groups):
     if removed > 0:
         warnings.append(f"Orders: Removed {removed} orders with invalid dates or zero/non-numeric volume.")
 
-    # Fill missing statuses
     df["OrderStatus"] = df["OrderStatus"].fillna("Aktiv")
     return df, warnings
 
@@ -305,7 +286,6 @@ def validate_fish_groups(df):
 
     df = df.copy()
 
-    # Ensure essential columns exist
     default_cols = {
         "Site": "",
         "Site_Broodst_Season": "",
@@ -322,12 +302,10 @@ def validate_fish_groups(df):
             df[col] = default
             warnings.append(f"Fish groups: Missing column '{col}' added with defaults.")
 
-    # Convert data types - ensure column exists before attempting conversion
     date_columns = ["StrippingStartDate", "StrippingStopDate", "SalesStartDate", "SalesStopDate"]
     for col in date_columns:
         df[col] = pd.to_datetime(df[col], errors="coerce")
 
-    # Handle degree-day columns
     if "MinTemp_prod" in df.columns:
         df["MinTemp_prod"] = pd.to_numeric(df["MinTemp_prod"], errors="coerce").fillna(300)
     else:
@@ -340,33 +318,26 @@ def validate_fish_groups(df):
         df["MaxTemp_prod"] = 500
         warnings.append("Fish groups: MaxTemp_prod not found. Using default value of 500 degree-days.")
     
-    # Validate degree-day constraints
     invalid = df[df["MinTemp_prod"] >= df["MaxTemp_prod"]]
     if not invalid.empty:
         warnings.append(f"Fish groups: {len(invalid)} groups have MinTemp_prod >= MaxTemp_prod. These may cause issues.")
 
-    # Ensure numeric columns exist and are numeric
     df["Gain-eggs"] = pd.to_numeric(df["Gain-eggs"], errors="coerce").fillna(0)
     df["Shield-eggs"] = pd.to_numeric(df["Shield-eggs"], errors="coerce").fillna(0)
 
-    # Process organic status
     df["Organic"] = df["Organic"].apply(process_organic)
 
-    # Ensure GroupKey exists (use Site_Broodst_Season)
     if "GroupKey" not in df.columns:
         df["GroupKey"] = df["Site_Broodst_Season"]
 
-    # Ensure Site column exists (if missing or blank)
     if "Site" not in df.columns or df["Site"].isna().all():
         df["Site"] = df["Site_Broodst_Season"].apply(lambda x: str(x).split("_")[0] if pd.notna(x) else "Unknown")
         warnings.append("Fish groups: 'Site' column not found or empty. Created from Site_Broodst_Season.")
 
-    # Remove rows with invalid critical data
     required_columns = ["GroupKey", "Site_Broodst_Season", "Site"]
     initial_count = len(df)
     for col in required_columns:
         df = df[df[col].notna() & (df[col] != "")]
-    # Drop duplicate groups
     df = df.drop_duplicates(subset=["GroupKey" if "GroupKey" in df.columns else "Site_Broodst_Season"], keep='first')
 
     if len(df) < initial_count:
@@ -395,7 +366,6 @@ def parse_contents(contents, filename, content_type=None):
 
         if name.endswith(".csv"):
             try:
-                # auto-detect delimiter
                 df = pd.read_csv(io.StringIO(decoded.decode("utf-8")), sep=None, engine="python")
                 return df, warnings
             except UnicodeDecodeError:
@@ -437,7 +407,6 @@ def load_validated_data():
         })
         groups_warnings.append(f"Error loading {FISH_GROUPS_DATA_PATH}: {e}")
 
-    # Validate data
     fish_groups_df, val_w_groups = validate_fish_groups(fish_groups_df)
     orders_df, val_w_orders = validate_orders(orders_df, fish_groups_df)
 
@@ -450,7 +419,7 @@ def load_validated_data():
 # -------------------------------
 
 def build_feasible_pairs(active_orders, all_fish_groups):
-    """Build feasible assignment pairs using degree-days constraints."""
+    """🔴 FIXED: Build feasible assignment pairs using corrected degree-days constraints."""
     feasible = {i: set() for i in active_orders.index}
     dummy_idx_list = all_fish_groups[all_fish_groups["Site"] == "Dummy"].index
     if dummy_idx_list.empty:
@@ -468,7 +437,6 @@ def build_feasible_pairs(active_orders, all_fish_groups):
         max_temp_customer = float(active_orders.loc[i, "MaxTemp_customer"])
         cust_id = str(active_orders.loc[i, "CustomerID"] or "")
 
-        # Always allow Dummy so every order is assignable
         feasible[i].add(dummy_j)
 
         for j in all_fish_groups.index:
@@ -476,23 +444,18 @@ def build_feasible_pairs(active_orders, all_fish_groups):
                 continue
             row = all_fish_groups.loc[j]
 
-            # Organic feasibility
             if org_req and not bool(row["Organic"]):
                 continue
 
-            # Locked group
             if locked and row["Site_Broodst_Season"] != locked:
                 continue
 
-            # Elite/Nucleus site restriction
             if product in ["Elite", "Nucleus"] and row["Site"] != ELITE_NUCLEUS_SITE:
                 continue
 
-            # Hønsvikgulen -> Lerøy only
             if row["Site"] == HONSVIKGULEN_SITE and not cust_id.startswith(LEROY_CUSTOMER_PREFIX):
                 continue
 
-            # DEGREE-DAYS CONSTRAINT
             is_feasible = calculate_degree_days_feasibility(
                 row["StrippingStartDate"], row["StrippingStopDate"],
                 row["MinTemp_prod"], row["MaxTemp_prod"],
@@ -506,7 +469,7 @@ def build_feasible_pairs(active_orders, all_fish_groups):
 
             feasible[i].add(j)
     
-    print(f"Applied {constraints_applied} degree-days exclusion constraints during feasibility building")
+    print(f"✅ Applied {constraints_applied} degree-days exclusion constraints (CORRECTED logic)")
     return feasible
 
 
@@ -543,7 +506,6 @@ def diagnose_dummy(order_row, fish_groups):
             continue
         customer_ok = True
         
-        # Check degree-days feasibility
         is_feasible = calculate_degree_days_feasibility(
             row["StrippingStartDate"], row["StrippingStopDate"],
             row["MinTemp_prod"], row["MaxTemp_prod"],
@@ -553,7 +515,6 @@ def diagnose_dummy(order_row, fish_groups):
         if not is_feasible:
             continue
         temp_ok = True
-        # If reached, there is at least one feasible group -> capacity must be limiting
         return "Capacity limitation or objective penalties"
 
     if not any_group:
@@ -567,7 +528,7 @@ def diagnose_dummy(order_row, fish_groups):
     if not customer_ok:
         reasons.append(f"Customer restriction for site {HONSVIKGULEN_SITE}")
     if not temp_ok:
-        reasons.append("No groups within degree-days delivery window")
+        reasons.append("No groups within degree-days delivery window (corrected calculation)")
     return "; ".join(reasons) if reasons else "No feasible group"
 
 
@@ -576,19 +537,14 @@ def diagnose_dummy(order_row, fish_groups):
 # -------------------------------
 def solve_egg_allocation(orders, fish_groups):
     """
-    Solves the egg allocation problem using PuLP with degree-days constraints.
-    
-    🔴 CRITICAL FIX: Gain and Shield capacities are now completely separated.
+    Solves the egg allocation problem using PuLP with corrected degree-days constraints.
     """
-    # Create working copies
     orders = orders.copy()
     fish_groups = fish_groups.copy()
 
-    # Filter active orders
     active_orders = orders[orders["OrderStatus"] != "Kansellert"].reset_index(drop=True)
     if active_orders.empty:
         status_str = "No active orders"
-        # Prepare outputs
         results = orders.assign(AssignedGroup="No active orders", IsDummy=False, DummyReason="")
         capacity = fish_groups.assign(
             GainEggsUsed=0, ShieldEggsUsed=0, TotalEggsUsed=0,
@@ -596,7 +552,6 @@ def solve_egg_allocation(orders, fish_groups):
             ShieldEggsRemaining=fish_groups["Shield-eggs"],
             TotalEggsRemaining=fish_groups["Gain-eggs"] + fish_groups["Shield-eggs"]
         )
-        # Add delivery windows
         capacity = add_delivery_windows(capacity)
         final_capacity = capacity[[
             "Site_Broodst_Season", "Site", "StrippingStartDate", "StrippingStopDate",
@@ -606,7 +561,6 @@ def solve_egg_allocation(orders, fish_groups):
         ]]
         return {"status": status_str, "results": results, "remaining_capacity": final_capacity, "summary": {}}
 
-    # Add dummy group for unassignable orders
     dummy_group = pd.DataFrame({
         "GroupKey": ["Dummy"], "Site": ["Dummy"], "Site_Broodst_Season": ["Dummy"],
         "StrippingStartDate": [pd.Timestamp("2000-01-01")], "StrippingStopDate": [pd.Timestamp("2100-12-31")],
@@ -616,13 +570,11 @@ def solve_egg_allocation(orders, fish_groups):
     })
     all_fish_groups = pd.concat([fish_groups, dummy_group], ignore_index=True)
 
-    # Build feasible pairs with degree-days constraints
-    print("Building feasible pairs with degree-days constraints...")
+    print("🔧 Building feasible pairs with CORRECTED degree-days constraints...")
     feasible = build_feasible_pairs(active_orders, all_fish_groups)
     prob = pl.LpProblem("FishEggAllocation", pl.LpMinimize)
     x = {(i, j): pl.LpVariable(f"x_{i}_{j}", cat="Binary") for i in active_orders.index for j in feasible[i]}
 
-    # Precompute FIFO penalties and preferred mapping
     real_groups = all_fish_groups[all_fish_groups["Site"] != "Dummy"]
     earliest_start = real_groups["StrippingStartDate"].min() if not real_groups.empty else pd.NaT
     group_fifo_pen = {}
@@ -635,7 +587,6 @@ def solve_egg_allocation(orders, fish_groups):
     preferred_map = {i: str(active_orders.loc[i, "PreferredSite"] or "") for i in active_orders.index}
     dummy_j = all_fish_groups[all_fish_groups["Site"] == "Dummy"].index[0]
 
-    # Objective
     obj_terms = []
     for (i, j), var in x.items():
         is_dummy = 1 if j == dummy_j else 0
@@ -644,12 +595,9 @@ def solve_egg_allocation(orders, fish_groups):
         obj_terms.append(W_DUMMY * var * is_dummy + W_PREF * var * pref_mismatch + W_FIFO * var * fifo_pen)
     prob += pl.lpSum(obj_terms)
 
-    # Assignment: each order exactly once over feasible options
     for i in active_orders.index:
         prob += pl.lpSum(x[i, j] for j in feasible[i]) == 1
 
-    # 🔴 CRITICAL FIX: Separate capacity constraints for Gain and Shield
-    print("Applying SEPARATED Gain and Shield capacity constraints...")
     for j in all_fish_groups.index:
         if all_fish_groups.loc[j, "Site"] == "Dummy":
             continue
@@ -660,33 +608,27 @@ def solve_egg_allocation(orders, fish_groups):
         shield_i = [i for i in active_orders.index if active_orders.loc[i, "Product"] == "Shield" and j in feasible[i]]
         elite_i = [i for i in active_orders.index if active_orders.loc[i, "Product"] in ["Elite", "Nucleus"] and j in feasible[i]]
 
-        # Constraint 1: Gain orders use ONLY Gain capacity
-        # Elite/Nucleus also use Gain capacity
         all_gain_orders = gain_i + elite_i
         if all_gain_orders:
             prob += pl.lpSum(x[i, j] * active_orders.loc[i, "Volume"] for i in all_gain_orders) <= Gcap
 
-        # Constraint 2: Shield orders use ONLY Shield capacity
         if shield_i:
             prob += pl.lpSum(x[i, j] * active_orders.loc[i, "Volume"] for i in shield_i) <= Scap
 
-    # Solve
     try:
         start = perf_counter()
         PULP_CBC_CMD(msg=False, timeLimit=SOLVER_TIME_LIMIT_SECONDS).solve(prob)
         solve_time = perf_counter() - start
         solver_status = pl.LpStatus[prob.status]
-        print(f"Solver completed: {solver_status} in {solve_time:.2f}s")
+        print(f"✅ Solver completed: {solver_status} in {solve_time:.2f}s")
     except Exception as e:
         solver_status = f"Error: {e}"
         solve_time = 0.0
 
-    # Process results for active orders
     results = active_orders.copy()
     results["AssignedGroup"] = None
     results["IsDummy"] = False
 
-    # Track usage
     gain_used = {j: 0.0 for j in all_fish_groups.index}
     shield_used = {j: 0.0 for j in all_fish_groups.index}
 
@@ -709,7 +651,6 @@ def solve_egg_allocation(orders, fish_groups):
             elif product == "Shield":
                 shield_used[assigned_j] += volume
 
-    # Merge results back into all orders
     all_res = orders.copy()
     all_res["AssignedGroup"] = None
     all_res["IsDummy"] = False
@@ -724,7 +665,6 @@ def solve_egg_allocation(orders, fish_groups):
             all_res.loc[i, "AssignedGroup"] = "Skipped-Cancelled"
             all_res.loc[i, "IsDummy"] = False
 
-    # Add DummyReason for active orders
     res_active = all_res[all_res["OrderStatus"] != "Kansellert"].copy()
     res_active["DummyReason"] = ""
     for idx, r in res_active.iterrows():
@@ -733,7 +673,6 @@ def solve_egg_allocation(orders, fish_groups):
     all_res = all_res.merge(res_active[["OrderNr", "DummyReason"]], on="OrderNr", how="left")
     all_res["DummyReason"] = all_res["DummyReason"].fillna("")
 
-    # Calculate remaining capacity
     capacity = fish_groups.copy()
     capacity["GainEggsUsed"] = 0.0
     capacity["ShieldEggsUsed"] = 0.0
@@ -758,7 +697,6 @@ def solve_egg_allocation(orders, fish_groups):
                         gain_used[j] - shield_used[j]
                     )
 
-    # Add delivery windows
     capacity = add_delivery_windows(capacity)
 
     final_capacity = capacity[[
@@ -768,7 +706,6 @@ def solve_egg_allocation(orders, fish_groups):
         "TotalEggsUsed", "GainEggsRemaining", "ShieldEggsRemaining", "TotalEggsRemaining"
     ]].copy()
 
-    # Summary
     total_orders = int((orders["OrderStatus"] != "Kansellert").sum())
     assigned_dummy = int(all_res[(all_res["OrderStatus"] != "Kansellert") & (all_res["IsDummy"])].shape[0])
     summary = {
@@ -793,15 +730,13 @@ def solve_egg_allocation(orders, fish_groups):
 # -------------------------------
 def create_buffer_graph(remaining, results, selected_groups=None):
     """
-    Creates a visualization of weekly inventory buffer over time,
-    grouped by Site_Broodst_Season.
+    Creates a visualization of weekly inventory buffer over time.
     """
     if remaining is None or results is None or len(remaining) == 0 or "Site_Broodst_Season" not in remaining.columns:
         return px.line(title="No capacity data available")
 
     df = remaining.copy()
     
-    # Handle date columns that might have been renamed
     if "StrippingStartDate" in df.columns:
         df["SalesStartDate"] = pd.to_datetime(df["StrippingStartDate"])
     else:
@@ -851,7 +786,7 @@ def create_buffer_graph(remaining, results, selected_groups=None):
     buffer_df = pd.DataFrame(buffer_data)
     fig = px.line(
         buffer_df, x="Week", y="RemainingCapacity", color="Group",
-        title="Weekly Inventory Buffer by Fish Group (Degree-Days Model)", markers=True
+        title="Weekly Inventory Buffer by Fish Group (Degree-Days Model - CORRECTED)", markers=True
     )
     fig.update_layout(
         xaxis_title="Week", yaxis_title="Remaining Capacity (Millions)",
@@ -958,53 +893,105 @@ def build_order_dropdowns(group_keys):
 
 
 # -------------------------------
-# INITIAL DATA LOAD (Example Data)
+# 🔴 CHANGED: START WITH EMPTY DATA
 # -------------------------------
-orders_data, fish_groups_data, initial_warnings = load_validated_data()
+orders_data = pd.DataFrame(columns=[
+    "OrderNr","DeliveryDate","OrderStatus","CustomerID","CustomerName","Product",
+    "Organic","Volume","LockedSite","PreferredSite","MinTemp_customer","MaxTemp_customer"
+])
+
+fish_groups_data = pd.DataFrame(columns=[
+    "Site","Site_Broodst_Season","StrippingStartDate","StrippingStopDate",
+    "MinTemp_prod","MaxTemp_prod","Gain-eggs","Shield-eggs","Organic",
+    "SalesStartDate","SalesStopDate"
+])
+
+initial_warnings = ["Please upload data files or click 'Load Example Data' to begin."]
 
 # -------------------------------
 # DASH APP SETUP
 # -------------------------------
 app = dash.Dash(__name__, suppress_callback_exceptions=True, external_stylesheets=[dbc.themes.FLATLY])
-app.title = "Fish Egg Allocation Solver - Degree-Days Model (Updated)"
+app.title = "Fish Egg Allocation Solver - Degree-Days Model (FIXED)"
 
 app.layout = dbc.Container([
-    html.H1("Fish Egg Allocation Solver (Degree-Days Model)", className="text-center my-4 py-3 bg-primary text-white rounded"),
+    html.H1("🔧 Fish Egg Allocation Solver (Degree-Days - DELIVERY WINDOW FIXED)", 
+            className="text-center my-4 py-3 bg-primary text-white rounded"),
+    
+    dbc.Alert([
+        html.H4("✅ Critical Fix Applied", className="alert-heading"),
+        html.P([
+            html.Strong("Fixed: "), "Delivery window calculation now correctly uses:",
+            html.Br(),
+            "• Earliest delivery = when LAST (youngest) stripped eggs reach MinTemp_prod",
+            html.Br(),
+            "• Latest delivery = when FIRST (oldest) stripped eggs reach MaxTemp_prod",
+            html.Br(),
+            "• Safety: Using math.ceil() for minimum degree-days to ensure quality",
+        ])
+    ], color="success", className="mb-4"),
     
     dbc.Row([
         dbc.Col([
+            html.H4("Data Source Selection", className="mb-3"),
             dcc.RadioItems(
                 id="data-source-selector",
                 options=[
-                    {"label": "Load Example Data", "value": "example"},
-                    {"label": "Upload Your Data", "value": "upload"}
+                    {"label": " Upload Your Data (Start Here)", "value": "upload"},
+                    {"label": " Load Example Data", "value": "example"}
                 ],
-                value="example",
-                labelStyle={"display": "inline-block", "marginRight": "20px"}
+                value="upload",
+                labelStyle={"display": "block", "marginBottom": "10px"},
+                className="mb-3"
             ),
             html.Div(
                 id="upload-container",
                 children=[
-                    html.H4("Upload Orders File"),
+                    dbc.Alert([
+                        html.Strong("📤 Upload Your Files"),
+                        html.Br(),
+                        "Please upload both Orders and Fish Groups files to continue.",
+                        html.Br(),
+                        "Supported formats: CSV, Excel (.xlsx, .xls)"
+                    ], color="info", className="mb-3"),
+                    
+                    html.H5("Upload Orders File"),
                     dcc.Upload(
                         id="upload-orders",
-                        children=html.Div(["Drag and Drop or ", html.A("Select Orders File")]),
-                        style={'width': '100%', 'height': '60px', 'lineHeight': '60px',
-                               'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                               'textAlign': 'center', 'marginBottom': '10px'},
+                        children=html.Div([
+                            "Drag and Drop or ",
+                            html.A("Click to Select Orders File", style={"fontWeight": "bold"})
+                        ]),
+                        style={
+                            'width': '100%', 'height': '80px', 'lineHeight': '80px',
+                            'borderWidth': '2px', 'borderStyle': 'dashed', 
+                            'borderRadius': '10px', 'borderColor': '#007bff',
+                            'textAlign': 'center', 'marginBottom': '15px',
+                            'backgroundColor': '#f8f9fa'
+                        },
                         multiple=False
                     ),
-                    html.H4("Upload Fish Groups File"),
+                    html.Div(id="upload-orders-status", className="mb-3"),
+                    
+                    html.H5("Upload Fish Groups File"),
                     dcc.Upload(
                         id="upload-fish-groups",
-                        children=html.Div(["Drag and Drop or ", html.A("Select Fish Groups File")]),
-                        style={'width': '100%', 'height': '60px', 'lineHeight': '60px',
-                               'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px',
-                               'textAlign': 'center'},
+                        children=html.Div([
+                            "Drag and Drop or ",
+                            html.A("Click to Select Fish Groups File", style={"fontWeight": "bold"})
+                        ]),
+                        style={
+                            'width': '100%', 'height': '80px', 'lineHeight': '80px',
+                            'borderWidth': '2px', 'borderStyle': 'dashed',
+                            'borderRadius': '10px', 'borderColor': '#007bff',
+                            'textAlign': 'center',
+                            'backgroundColor': '#f8f9fa'
+                        },
                         multiple=False
-                    )
+                    ),
+                    html.Div(id="upload-fish-groups-status", className="mb-3"),
                 ],
-                style={"display": "none"}
+                style={"display": "block"}
             )
         ], width=12)
     ], className="my-3"),
@@ -1015,19 +1002,19 @@ app.layout = dbc.Container([
             dash_table.DataTable(
                 id="order-table",
                 data=orders_data.to_dict("records"),
-                columns=build_order_columns_schema(fish_groups_data["Site_Broodst_Season"].unique()),
+                columns=build_order_columns_schema([]),
                 editable=True, 
                 row_deletable=True, 
                 page_action='native', 
                 page_current=0,
                 page_size=10, 
                 sort_action='native',
-                # NO filter_action - this is input table
-                dropdown=build_order_dropdowns(fish_groups_data["Site_Broodst_Season"].unique()),
+                dropdown=build_order_dropdowns([]),
                 fixed_rows={"headers": True}, 
                 **get_input_table_style()
             ),
-            dbc.Button("Add Order Row", id="add-order-row-button", n_clicks=0, color="primary", className="mt-2"),
+            dbc.Button("Add Order Row", id="add-order-row-button", n_clicks=0, 
+                      color="primary", className="mt-2"),
             
             html.H3("Fish Groups (Input)", className="mt-4"),
             dash_table.DataTable(
@@ -1040,46 +1027,51 @@ app.layout = dbc.Container([
                 page_current=0,
                 page_size=10, 
                 sort_action='native',
-                # NO filter_action - this is input table
                 fixed_rows={"headers": True}, 
                 **get_input_table_style()
             ),
-            dbc.Button("Add Fish Group Row", id="add-fish-group-row-button", n_clicks=0, color="primary", className="mt-2"),
+            dbc.Button("Add Fish Group Row", id="add-fish-group-row-button", n_clicks=0, 
+                      color="primary", className="mt-2"),
         ], width=7),
         
         dbc.Col([
             html.H3("Problem Description & Constraints", className="mt-4"),
             dcc.Markdown("""
-                ### Overview (Degree-Days Model - UPDATED)
+                ### Overview (Degree-Days Model - CORRECTED)
                 This application allocates customer orders to fish egg groups using **degree-days** for temperature tracking.
+
+                **🔧 FIXED - Delivery Window Calculation:**
+                - **EarliestDelivery**: When LAST (youngest) stripped eggs reach MinTemp_prod
+                - **LatestDelivery**: When FIRST (oldest) stripped eggs reach MaxTemp_prod
+                - **Result**: ALL eggs in batch meet quality requirements simultaneously
 
                 **Key Features:**
                 - **MinTemp_customer / MaxTemp_customer**: Degree-days required/accepted by customer
                 - **MinTemp_prod / MaxTemp_prod**: Degree-days when roe is sellable/overripe
-                - **EarliestDelivery / LatestDelivery**: Calculated delivery windows per group (shown in capacity table)
-                - Delivery feasibility calculated using degree-day accumulation
+                - **Delivery windows shown in capacity table**
+                - Delivery feasibility calculated using corrected degree-day accumulation
 
                 **Constraints:**
                 - Each active order assigned once
-                - 🔴 **Gain uses ONLY Gain capacity; Shield uses ONLY Shield capacity (NO MIXING)**
-                - **Delivery date must allow degree-day requirements to be met**
+                - **Gain uses ONLY Gain capacity; Shield uses ONLY Shield capacity**
+                - **Delivery date must allow degree-day requirements to be met (CORRECTED)**
                 - Organic orders only to organic groups
                 - Locked group must be used
                 - Elite/Nucleus only from Hemne
                 - Hønsvikgulen delivers only to Lerøy customers
-                - FIFO preference (earlier stripping stop favored)
                 
-                **Degree-Days Logic:**
-                - Customer requirements must fit within production limits
-                - Delivery date must allow sufficient time for degree-day accumulation
+                **Technical Details:**
+                - Uses `math.ceil()` for safety on minimum degree-days
+                - Validates that delivery windows are physically possible
                 - Default water temperature: 8°C
             """, className="p-3 bg-light rounded"),
             
-            dbc.Alert(id="validation-alert", color="warning", is_open=bool(initial_warnings),
-                      children="; ".join(initial_warnings) if initial_warnings else "", duration=9000, className="mt-2"),
+            dbc.Alert(id="validation-alert", color="info", is_open=bool(initial_warnings),
+                      children="; ".join(initial_warnings) if initial_warnings else "", 
+                      duration=None, className="mt-2"),
             
             dbc.Button("Solve Allocation Problem", id="solve-button", n_clicks=0,
-                       color="success", size="lg", className="mt-4"),
+                       color="success", size="lg", className="mt-4", disabled=True),
             html.Div(id="solver-summary", className="mt-3"),
         ], width=5, className="p-4"),
     ], className="my-4"),
@@ -1089,9 +1081,8 @@ app.layout = dbc.Container([
         children=html.Div(
             id="results-section", className="mt-4", style={"display": "none"},
             children=[
-                html.H2("Solver Results", className="text-center mb-4"),
+                html.H2("Solver Results (CORRECTED LOGIC)", className="text-center mb-4"),
                 
-                # 🟡 FILTER ENHANCEMENT: Add dummy filter toggle
                 dbc.Row([
                     dbc.Col([
                         dbc.Card([
@@ -1106,8 +1097,7 @@ app.layout = dbc.Container([
                                 ),
                                 html.P([
                                     html.Strong("💡 Filter Tips: "),
-                                    "Use the switch above to show only dummy assignments, or type directly in the column filter boxes below. ",
-                                    "For example, type 'true' in the IsDummy column filter to show dummy orders."
+                                    "Use the switch above to show only dummy assignments, or type directly in the column filter boxes below."
                                 ], className="text-muted small mb-0")
                             ])
                         ], className="mb-3", color="light")
@@ -1119,7 +1109,7 @@ app.layout = dbc.Container([
                         html.H3("Order Assignments (Results)", className="mt-4"),
                         dash_table.DataTable(
                             id="results-table", 
-                            filter_action='native',  # ✅ FILTERING ENABLED
+                            filter_action='native',
                             page_action='native',
                             page_size=10,
                             sort_action='native',
@@ -1128,12 +1118,14 @@ app.layout = dbc.Container([
                         
                         html.H3("Remaining Capacity with Delivery Windows (Results)", className="mt-4"),
                         html.P([
-                            html.Strong("📅 Delivery Windows: "),
-                            "EarliestDelivery and LatestDelivery show the valid date range for each fish group based on degree-days constraints."
+                            html.Strong("📅 Delivery Windows (CORRECTED): "),
+                            "EarliestDelivery = when youngest eggs are ready. ",
+                            "LatestDelivery = when oldest eggs become overripe. ",
+                            "This ensures ALL eggs meet quality standards."
                         ], className="text-info small"),
                         dash_table.DataTable(
                             id="capacity-table", 
-                            filter_action='native',  # ✅ FILTERING ENABLED
+                            filter_action='native',
                             page_action='native',
                             page_size=10,
                             sort_action='native',
@@ -1152,9 +1144,11 @@ app.layout = dbc.Container([
                 
                 dbc.Row([
                     dbc.Col([
-                        dbc.Button("Download Results (CSV)", id="download-csv-button", color="info", className="mt-2 me-2"),
+                        dbc.Button("Download Results (CSV)", id="download-csv-button", 
+                                  color="info", className="mt-2 me-2"),
                         dcc.Download(id="download-csv"),
-                        dbc.Button("Download Excel (Results+Capacity)", id="download-xlsx-button", color="secondary", className="mt-2"),
+                        dbc.Button("Download Excel (Results+Capacity)", id="download-xlsx-button", 
+                                  color="secondary", className="mt-2"),
                         dcc.Download(id="download-xlsx"),
                     ], width=12)
                 ], className="mt-3"),
@@ -1166,6 +1160,51 @@ app.layout = dbc.Container([
 # -------------------------------
 # CALLBACKS
 # -------------------------------
+
+@app.callback(
+    Output("upload-orders-status", "children"),
+    Input("upload-orders", "contents"),
+    State("upload-orders", "filename")
+)
+def show_orders_upload_status(contents, filename):
+    if contents is None:
+        return None
+    return dbc.Alert(f"✅ Loaded: {filename}", color="success", className="mb-2")
+
+
+@app.callback(
+    Output("upload-fish-groups-status", "children"),
+    Input("upload-fish-groups", "contents"),
+    State("upload-fish-groups", "filename")
+)
+def show_fish_groups_upload_status(contents, filename):
+    if contents is None:
+        return None
+    return dbc.Alert(f"✅ Loaded: {filename}", color="success", className="mb-2")
+
+
+@app.callback(
+    [Output("solve-button", "disabled"),
+     Output("validation-alert", "children"),
+     Output("validation-alert", "is_open"),
+     Output("validation-alert", "color")],
+    [Input("order-table", "data"),
+     Input("fish-group-table", "data")]
+)
+def update_solve_button_state(order_data, fish_group_data):
+    """Enable solve button only when both tables have data."""
+    orders_empty = not order_data or len(order_data) == 0
+    groups_empty = not fish_group_data or len(fish_group_data) == 0
+    
+    if orders_empty and groups_empty:
+        return True, "Please upload data files or load example data to begin.", True, "info"
+    elif orders_empty:
+        return True, "Orders table is empty. Please upload orders data.", True, "warning"
+    elif groups_empty:
+        return True, "Fish groups table is empty. Please upload fish groups data.", True, "warning"
+    else:
+        return False, "✅ Data loaded successfully. Ready to solve!", True, "success"
+
 
 @app.callback(
     Output("upload-container", "style"),
@@ -1206,16 +1245,21 @@ def update_order_table(uploaded_contents, data_source, n_clicks, current_data, f
     columns_schema = build_order_columns_schema(group_keys)
     table_data = current_data if current_data else []
 
-    if triggered_id in ["upload-orders", "data-source-selector"]:
-        if data_source == "upload" and uploaded_contents is not None:
+    if triggered_id == "data-source-selector":
+        if data_source == "example":
+            odf, _, _ = load_validated_data()
+            return odf.to_dict("records"), columns_schema
+        else:
+            return table_data, columns_schema
+    
+    elif triggered_id == "upload-orders":
+        if uploaded_contents is not None:
             df, _ = parse_contents(uploaded_contents, filename)
             if df is not None:
                 fg_valid, _ = validate_fish_groups(fg_df)
                 df_valid, _ = validate_orders(df, fg_valid)
                 return df_valid.to_dict("records"), columns_schema
-        else:
-            odf, _, _ = load_validated_data()
-            return odf.to_dict("records"), columns_schema
+    
     elif triggered_id == "add-order-row-button" and n_clicks > 0:
         new_row = {
             "OrderNr": "", "OrderStatus": "Aktiv", "CustomerID": "", "CustomerName": "",
@@ -1240,20 +1284,29 @@ def update_fish_group_table(uploaded_contents, data_source, n_clicks, current_da
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
     table_data = current_data if current_data else []
 
-    if triggered_id in ["upload-fish-groups", "data-source-selector"]:
-        if data_source == "upload" and uploaded_contents is not None:
+    if triggered_id == "data-source-selector":
+        if data_source == "example":
+            _, fish_groups_df, _ = load_validated_data()
+            return fish_groups_df.to_dict("records")
+        else:
+            return table_data
+    
+    elif triggered_id == "upload-fish-groups":
+        if uploaded_contents is not None:
             df, _ = parse_contents(uploaded_contents, filename)
             if df is not None:
                 df_valid, _ = validate_fish_groups(df)
                 return df_valid.to_dict("records")
-        else:
-            _, fish_groups_df, _ = load_validated_data()
-            return fish_groups_df.to_dict("records")
+    
     elif triggered_id == "add-fish-group-row-button" and n_clicks > 0:
         if not table_data:
-            _, fish_groups_df, _ = load_validated_data()
-            columns = fish_groups_df.columns
-            new_row = {col: "" for col in columns}
+            new_row = {
+                "Site": "", "Site_Broodst_Season": "", 
+                "StrippingStartDate": "", "StrippingStopDate": "",
+                "MinTemp_prod": 300, "MaxTemp_prod": 1200,
+                "Gain-eggs": 0, "Shield-eggs": 0, "Organic": False,
+                "SalesStartDate": "", "SalesStopDate": ""
+            }
         else:
             new_row = {col: "" for col in table_data[0].keys()}
         table_data.append(new_row)
@@ -1266,48 +1319,37 @@ def update_fish_group_table(uploaded_contents, data_source, n_clicks, current_da
      Output("results-table", "data"), Output("results-table", "columns"),
      Output("capacity-table", "data"), Output("capacity-table", "columns"),
      Output("buffer-visualization", "figure"), Output("solve-button", "children"),
-     Output("validation-alert", "children"), Output("validation-alert", "is_open"),
-     Output("validation-alert", "color"), Output("solver-summary", "children"),
      Output("buffer-group-filter", "options"), Output("buffer-group-filter", "value")],
     [Input("solve-button", "n_clicks"),
      Input("filter-dummy-toggle", "value")],
     [State("order-table", "data"), State("fish-group-table", "data"),
      State("buffer-group-filter", "value"),
-     State("results-table", "data")],  # Added state to check if results exist
+     State("results-table", "data")],
     prevent_initial_call=True
 )
 def update_results(n_clicks, dummy_filter, order_data, fish_group_data, selected_groups, current_results):
     ctx = dash.callback_context
     triggered_id = ctx.triggered[0]['prop_id'].split('.')[0] if ctx.triggered else None
     
-    # If only filter changed and we have existing results, just filter and return
     if triggered_id == "filter-dummy-toggle" and current_results:
         results_df = pd.DataFrame(current_results)
-        
-        # Apply dummy filter if active
         display_results = results_df.copy()
         if "dummy" in dummy_filter:
             display_results = display_results[display_results["IsDummy"] == True]
-        
         results_cols = [{"name": c, "id": c} for c in display_results.columns]
-        
-        # Return only the results table data, keep everything else the same
-        return dash.no_update, display_results.to_dict("records"), results_cols, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return dash.no_update, display_results.to_dict("records"), results_cols, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     
-    # Only run solver if solve button was clicked
     if triggered_id == "solve-button" and n_clicks > 0:
         orders_df = pd.DataFrame(order_data)
         fish_groups_df = pd.DataFrame(fish_group_data)
         fish_groups_df, w1 = validate_fish_groups(fish_groups_df)
         orders_df, w2 = validate_orders(orders_df, fish_groups_df)
-        warnings = w1 + w2
 
         solution = solve_egg_allocation(orders_df, fish_groups_df)
         results_df = solution["results"]
         capacity_df = solution["remaining_capacity"]
         status = solution["status"]
 
-        # Apply dummy filter if active
         display_results = results_df.copy()
         if "dummy" in dummy_filter:
             display_results = display_results[display_results["IsDummy"] == True]
@@ -1321,28 +1363,13 @@ def update_results(n_clicks, dummy_filter, order_data, fish_group_data, selected
 
         fig = create_buffer_graph(capacity_df, results_df, selected_groups=filter_value)
         button_text = f"Solve Allocation Problem (Status: {status})"
-        alert_text = "; ".join(warnings) if warnings else "✅ Optimization completed successfully with separated Gain/Shield capacities!"
-        alert_open = True
-        alert_color = "warning" if warnings else "success"
-
-        sumd = solution.get("summary", {})
-        summary_children = html.Ul([
-            html.Li(f"Active orders: {sumd.get('total_orders', 0)}"),
-            html.Li(f"Dummy assignments: {sumd.get('dummy_orders', 0)}"),
-            html.Li(f"Organic orders: {sumd.get('organic_orders', 0)}"),
-            html.Li(f"Solve time: {sumd.get('solve_time_sec', 0):.2f}s"),
-            html.Li(f"Status: {sumd.get('status', 'N/A')}"),
-            html.Li(f"Binaries: {sumd.get('binaries', 0)}"),
-        ])
 
         return (
             {"margin": "20px", "display": "block"}, display_results.to_dict("records"),
             results_cols, capacity_df.to_dict("records"), capacity_cols, fig,
-            button_text, alert_text, alert_open, alert_color, summary_children,
-            filter_options, filter_value
+            button_text, filter_options, filter_value
         )
     
-    # Default: no update
     return dash.no_update
 
 
@@ -1355,7 +1382,7 @@ def update_results(n_clicks, dummy_filter, order_data, fish_group_data, selected
 def export_results_csv(n_clicks, results_data):
     if n_clicks:
         df = pd.DataFrame(results_data)
-        return dcc.send_data_frame(df.to_csv, "solver_results_degree_days_updated.csv", index=False)
+        return dcc.send_data_frame(df.to_csv, "solver_results_degree_days_FIXED.csv", index=False)
     return None
 
 
@@ -1376,17 +1403,17 @@ def export_results_excel(n_clicks, results_data, capacity_data):
                 results_df.to_excel(writer, sheet_name="Results", index=False)
                 capacity_df.to_excel(writer, sheet_name="Capacity", index=False)
 
-        return dcc.send_bytes(to_excel, "solver_output_degree_days_updated.xlsx")
+        return dcc.send_bytes(to_excel, "solver_output_degree_days_FIXED.xlsx")
     return None
 
 
 # -------------------------------
-# RUN LOCAL OR VIA RENDER
+# RUN
 # -------------------------------
 if __name__ == "__main__":
     import os
     port = int(os.environ.get('PORT', 8050))
     host = '0.0.0.0'
     debug = os.environ.get('DEBUG', 'True').lower() == 'true'
-    print(f"Starting Degree-Days Model server (UPDATED VERSION) on {host}:{port} with debug={debug}")
+    print(f"🔧 Starting Degree-Days Model server (DELIVERY WINDOW FIXED + UI FIXED) on {host}:{port}")
     app.run(host=host, port=port, debug=debug)

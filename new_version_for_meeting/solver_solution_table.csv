@@ -1,0 +1,10 @@
+OrderNr,DeliveryDate,OrderStatus,CustomerName,Product,Organic,Volume,LockedSite,PreferredSite,AssignedGroup,IsDummy
+O001,2024-08-15,Bekreftet,AquaGen AS,Gain,False,500000.0,,Vestseøra,Vestseøra,False
+O002,2024-09-01,Bekreftet,NTNU,Gain,True,300000.0,,Bogen,Bogen,False
+O003,2024-10-01,Bekreftet,SalMar Farming AS,Shield,False,400000.0,,Kilavågen Land,Kilavågen Land,False
+O004,2024-09-25,Kansellert,Ewos Innovation AS,Shield,False,200000.0,,,Skipped-Cancelled,False
+O005,2024-08-20,Bekreftet,Lerøy Midt AS,Gain,False,600000.0,Hønsvikgulen,,Hønsvikgulen,False
+O006,2024-09-05,Bekreftet,Marine Harvest,Shield,False,250000.0,,Vestseøra,Bogen,False
+O007,2024-11-01,Bekreftet,Cermaq,Gain,True,350000.0,,Kilavågen Land,Dummy,True
+O008,2024-08-25,Bekreftet,New Shield Customer,Shield,False,1000000.0,,,Vestseøra,False
+O009,2024-09-05,Bekreftet,Mixed Farming AS,Shield,False,1500000.0,,,Dummy,True
