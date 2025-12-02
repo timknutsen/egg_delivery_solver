@@ -644,6 +644,105 @@ def generate_example_excel():
     return output.getvalue()
 
 
+def generate_orders_example_excel():
+    """
+    Genererer eksempel Excel-fil med kun ordrer.
+    Returnerer bytes som kan lastes ned.
+    """
+    from config import ORDERS
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        ORDERS.to_excel(writer, sheet_name='Ordrer', index=False)
+        
+        # Instruksjoner for ordre-felter
+        instructions = pd.DataFrame({
+            'Felt': [
+                'OrderNr', 'Customer', 'DeliveryDate', 'Product', 'Volume',
+                'MinTemp_C', 'MaxTemp_C', 'RequireOrganic',
+                'LockedSite', 'LockedGroup', 'PreferredSite', 'PreferredGroup'
+            ],
+            'Beskrivelse': [
+                'Unik ordrenummer (heltall)',
+                'Kundenavn',
+                'Ønsket leveringsdato (YYYY-MM-DD)',
+                'Produkttype: Gain eller Shield',
+                'Antall egg i ordren',
+                'Kundens min temperaturkrav i °C (typisk 2)',
+                'Kundens max temperaturkrav i °C (typisk 6)',
+                'True/False - krever kunden organic?',
+                'HARD: Ordre MÅ leveres fra dette anlegget (eller tom)',
+                'HARD: Ordre MÅ leveres fra denne gruppen (eller tom)',
+                'SOFT: Ordre BØR leveres fra dette anlegget (eller tom)',
+                'SOFT: Ordre BØR leveres fra denne gruppen (eller tom)'
+            ],
+            'Eksempel': [
+                '1001',
+                'Lerøy Midt',
+                '2024-11-15',
+                'Gain',
+                '1500000',
+                '2',
+                '6',
+                'False',
+                'Hønsvikgulen (eller tom)',
+                '(tom)',
+                'Hemne',
+                '(tom)'
+            ],
+            'Påkrevd': [
+                'Ja', 'Ja', 'Ja', 'Ja', 'Ja',
+                'Ja', 'Ja', 'Ja',
+                'Nei', 'Nei', 'Nei', 'Nei'
+            ]
+        })
+        instructions.to_excel(writer, sheet_name='Instruksjoner', index=False)
+    
+    output.seek(0)
+    return output.getvalue()
+
+
+def parse_orders_excel(contents, filename):
+    """
+    Parser opplastet Excel-fil med kun ordrer.
+    Returnerer DataFrame og eventuell feilmelding.
+    """
+    import base64
+    
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    
+    try:
+        if filename.endswith('.xlsx') or filename.endswith('.xls'):
+            excel_file = io.BytesIO(decoded)
+            
+            # Prøv først 'Ordrer'-ark, deretter første ark
+            try:
+                orders = pd.read_excel(excel_file, sheet_name='Ordrer')
+            except:
+                excel_file.seek(0)
+                orders = pd.read_excel(excel_file, sheet_name=0)
+            
+            # Valider påkrevde kolonner
+            required_cols = ['OrderNr', 'Customer', 'DeliveryDate', 'Product', 'Volume', 
+                           'MinTemp_C', 'MaxTemp_C', 'RequireOrganic']
+            missing_cols = [c for c in required_cols if c not in orders.columns]
+            
+            if missing_cols:
+                return None, f"Mangler påkrevde kolonner: {', '.join(missing_cols)}"
+            
+            # Legg til valgfrie kolonner hvis de mangler
+            optional_cols = ['LockedSite', 'LockedGroup', 'PreferredSite', 'PreferredGroup']
+            for col in optional_cols:
+                if col not in orders.columns:
+                    orders[col] = None
+            
+            return orders, None
+        else:
+            return None, "Feil filformat. Bruk .xlsx eller .xls"
+    except Exception as e:
+        return None, f"Feil ved parsing av fil: {str(e)}"
+
 def parse_uploaded_excel(contents, filename):
     """
     Parser opplastet Excel-fil og returnerer DataFrames.

@@ -4,8 +4,8 @@ DASH APP
 UI-layout og callbacks.
 Inkluderer:
 - Visning av mulige grupper per ordre
-- Eksport av eksempel inputfil
-- Opplasting av inputfil
+- Eksport av eksempel inputfiler (kombinert og kun ordrer)
+- Opplasting av inputfiler (kombinert og kun ordrer)
 """
 
 import dash
@@ -18,7 +18,13 @@ import os
 import base64
 
 from config import FISH_GROUPS, ORDERS, WATER_TEMP_C
-from logic import run_allocation, generate_example_excel, parse_uploaded_excel
+from logic import (
+    run_allocation, 
+    generate_example_excel, 
+    generate_orders_example_excel,
+    parse_uploaded_excel,
+    parse_orders_excel
+)
 
 # ==========================================
 # APP SETUP
@@ -53,25 +59,59 @@ app.layout = dbc.Container([
     dbc.Card([
         dbc.CardHeader("📁 Data Import/Export"),
         dbc.CardBody([
+            # Rad 1: Kombinert fil (fiskegrupper + ordrer)
+            html.H6("Komplett inputfil (Fiskegrupper + Ordrer)", className="mb-2"),
             dbc.Row([
                 dbc.Col([
-                    html.H6("Last opp inputfil"),
                     dcc.Upload(
                         id='upload-data',
-                        children=dbc.Button("📤 Velg Excel-fil", color="primary", outline=True),
+                        children=dbc.Button("📤 Last opp komplett fil", color="primary", outline=True, size="sm"),
                         multiple=False,
                         accept='.xlsx,.xls'
                     ),
-                    html.Div(id='upload-status', className="mt-2"),
-                ], width=6),
+                ], width=4),
                 dbc.Col([
-                    html.H6("Last ned eksempel"),
-                    dbc.Button("📥 Last ned eksempel inputfil", id="download-btn", color="secondary", outline=True),
+                    dbc.Button("📥 Last ned eksempel (komplett)", id="download-btn", color="secondary", outline=True, size="sm"),
                     dcc.Download(id="download-example"),
-                ], width=6),
-            ]),
+                ], width=4),
+                dbc.Col([
+                    html.Div(id='upload-status'),
+                ], width=4),
+            ], className="mb-3"),
+            
             html.Hr(),
-            html.Small("Last opp en Excel-fil med ark 'Fiskegrupper' og 'Ordrer', eller bruk eksempelfilen som mal.", className="text-muted"),
+            
+            # Rad 2: Kun ordrer
+            html.H6("Kun ordrer (bruker default fiskegrupper)", className="mb-2"),
+            dbc.Row([
+                dbc.Col([
+                    dcc.Upload(
+                        id='upload-orders-only',
+                        children=dbc.Button("📤 Last opp ordrefil", color="info", outline=True, size="sm"),
+                        multiple=False,
+                        accept='.xlsx,.xls'
+                    ),
+                ], width=4),
+                dbc.Col([
+                    dbc.Button("📥 Last ned eksempel (ordrer)", id="download-orders-btn", color="secondary", outline=True, size="sm"),
+                    dcc.Download(id="download-orders-example"),
+                ], width=4),
+                dbc.Col([
+                    html.Div(id='upload-orders-status'),
+                ], width=4),
+            ], className="mb-3"),
+            
+            html.Hr(),
+            
+            # Reset-knapp
+            dbc.Button("🔄 Tilbakestill til default data", id="reset-btn", color="warning", outline=True, size="sm"),
+            html.Div(id='reset-status', className="mt-2"),
+            
+            html.Hr(),
+            html.Small([
+                html.Strong("Komplett fil: "), "Excel med ark 'Fiskegrupper' og 'Ordrer'", html.Br(),
+                html.Strong("Ordrefil: "), "Excel med kun ordrer (bruker innebygde fiskegrupper)"
+            ], className="text-muted"),
         ])
     ], className="mb-4"),
     
@@ -98,7 +138,7 @@ app.layout = dbc.Container([
     dcc.Loading(html.Div(id="output")),
     
     # Hidden store for data
-    dcc.Store(id='data-store', data={'use_uploaded': False})
+    dcc.Store(id='data-store', data={'use_uploaded': False, 'orders_only': False})
 ], fluid=True)
 
 
@@ -106,7 +146,7 @@ app.layout = dbc.Container([
 # CALLBACKS
 # ==========================================
 
-# Vis default tabeller ved oppstart
+# Vis tabeller ved oppstart/endring
 @app.callback(
     [Output('fish-table-container', 'children'),
      Output('orders-table-container', 'children')],
@@ -116,9 +156,17 @@ def update_tables(store_data):
     fish_df = FISH_GROUPS
     orders_df = ORDERS
     
-    if store_data.get('use_uploaded') and uploaded_data['fish_groups'] is not None:
-        fish_df = uploaded_data['fish_groups']
-        orders_df = uploaded_data['orders']
+    if store_data.get('use_uploaded'):
+        if store_data.get('orders_only'):
+            # Kun ordrer lastet opp - bruk default fiskegrupper
+            if uploaded_data['orders'] is not None:
+                orders_df = uploaded_data['orders']
+        else:
+            # Komplett fil lastet opp
+            if uploaded_data['fish_groups'] is not None:
+                fish_df = uploaded_data['fish_groups']
+            if uploaded_data['orders'] is not None:
+                orders_df = uploaded_data['orders']
     
     fish_table = dash_table.DataTable(
         data=fish_df.to_dict('records'),
@@ -147,7 +195,7 @@ def update_tables(store_data):
     return fish_table, orders_table
 
 
-# Last ned eksempel
+# Last ned komplett eksempel
 @app.callback(
     Output("download-example", "data"),
     Input("download-btn", "n_clicks"),
@@ -158,28 +206,90 @@ def download_example(n_clicks):
     return dcc.send_bytes(excel_bytes, "eggallokering_eksempel.xlsx")
 
 
-# Håndter fil-opplasting
+# Last ned ordre-eksempel
+@app.callback(
+    Output("download-orders-example", "data"),
+    Input("download-orders-btn", "n_clicks"),
+    prevent_initial_call=True
+)
+def download_orders_example(n_clicks):
+    excel_bytes = generate_orders_example_excel()
+    return dcc.send_bytes(excel_bytes, "ordrer_eksempel.xlsx")
+
+
+# Håndter komplett fil-opplasting
 @app.callback(
     [Output('upload-status', 'children'),
-     Output('data-store', 'data')],
+     Output('data-store', 'data', allow_duplicate=True)],
     Input('upload-data', 'contents'),
     State('upload-data', 'filename'),
     prevent_initial_call=True
 )
 def handle_upload(contents, filename):
     if contents is None:
-        return "", {'use_uploaded': False}
+        return "", {'use_uploaded': False, 'orders_only': False}
     
     fish_groups, orders, error = parse_uploaded_excel(contents, filename)
     
     if error:
-        return dbc.Alert(error, color="danger"), {'use_uploaded': False}
+        return dbc.Alert(error, color="danger", className="py-1 px-2 mb-0"), {'use_uploaded': False, 'orders_only': False}
     
     # Lagre i global store
     uploaded_data['fish_groups'] = fish_groups
     uploaded_data['orders'] = orders
     
-    return dbc.Alert(f"✅ Lastet inn {filename}: {len(fish_groups)} grupper, {len(orders)} ordrer", color="success"), {'use_uploaded': True}
+    return (
+        dbc.Alert(f"✅ {filename}: {len(fish_groups)} grupper, {len(orders)} ordrer", color="success", className="py-1 px-2 mb-0"),
+        {'use_uploaded': True, 'orders_only': False}
+    )
+
+
+# Håndter ordre-fil opplasting
+@app.callback(
+    [Output('upload-orders-status', 'children'),
+     Output('data-store', 'data', allow_duplicate=True)],
+    Input('upload-orders-only', 'contents'),
+    State('upload-orders-only', 'filename'),
+    prevent_initial_call=True
+)
+def handle_orders_upload(contents, filename):
+    if contents is None:
+        return "", {'use_uploaded': False, 'orders_only': False}
+    
+    orders, error = parse_orders_excel(contents, filename)
+    
+    if error:
+        return dbc.Alert(error, color="danger", className="py-1 px-2 mb-0"), {'use_uploaded': False, 'orders_only': False}
+    
+    # Lagre kun ordrer (fiskegrupper = default)
+    uploaded_data['fish_groups'] = None
+    uploaded_data['orders'] = orders
+    
+    return (
+        dbc.Alert(f"✅ {filename}: {len(orders)} ordrer (bruker default grupper)", color="success", className="py-1 px-2 mb-0"),
+        {'use_uploaded': True, 'orders_only': True}
+    )
+
+
+# Reset til default data
+@app.callback(
+    [Output('reset-status', 'children'),
+     Output('data-store', 'data', allow_duplicate=True),
+     Output('upload-status', 'children', allow_duplicate=True),
+     Output('upload-orders-status', 'children', allow_duplicate=True)],
+    Input('reset-btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def reset_data(n_clicks):
+    uploaded_data['fish_groups'] = None
+    uploaded_data['orders'] = None
+    
+    return (
+        dbc.Alert("✅ Tilbakestilt til default data", color="info", className="py-1 px-2 mb-0"),
+        {'use_uploaded': False, 'orders_only': False},
+        "",
+        ""
+    )
 
 
 # Kjør allokering
@@ -191,10 +301,16 @@ def handle_upload(contents, filename):
 )
 def on_run(n_clicks, store_data):
     try:
-        # Velg data
-        if store_data.get('use_uploaded') and uploaded_data['fish_groups'] is not None:
-            fish_groups = uploaded_data['fish_groups']
-            orders = uploaded_data['orders']
+        # Velg data basert på hva som er lastet opp
+        if store_data.get('use_uploaded'):
+            if store_data.get('orders_only'):
+                # Kun ordrer lastet opp
+                fish_groups = FISH_GROUPS
+                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
+            else:
+                # Komplett fil lastet opp
+                fish_groups = uploaded_data['fish_groups'] if uploaded_data['fish_groups'] is not None else FISH_GROUPS
+                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
         else:
             fish_groups = FISH_GROUPS
             orders = ORDERS
@@ -361,10 +477,14 @@ def on_run(n_clicks, store_data):
 )
 def export_results(n_clicks, store_data):
     try:
-        # Kjør allokering på nytt for å få data
-        if store_data.get('use_uploaded') and uploaded_data['fish_groups'] is not None:
-            fish_groups = uploaded_data['fish_groups']
-            orders = uploaded_data['orders']
+        # Velg data basert på hva som er lastet opp
+        if store_data.get('use_uploaded'):
+            if store_data.get('orders_only'):
+                fish_groups = FISH_GROUPS
+                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
+            else:
+                fish_groups = uploaded_data['fish_groups'] if uploaded_data['fish_groups'] is not None else FISH_GROUPS
+                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
         else:
             fish_groups = FISH_GROUPS
             orders = ORDERS
