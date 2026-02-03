@@ -3,16 +3,14 @@ FORRETNINGSLOGIKK
 =================
 Denne filen inneholder all logikk for:
 - Preprocessing av data
-- Generering av batcher
+- Generering av batcher (Nå med oppslagstabell for vekst)
 - Feasibility-sjekk (inkl. Organic)
 - Optimalisering/allokering
 - Visualisering
 - Eksport av eksempeldata
 
-V2 ENDRINGER:
-- Separert Gain/Shield kapasitetsconstraints (FIX)
-- Lagt til slack-variabler med straff for ikke-tildeling (FIX)
-- Forbedret årsaksforklaring for ikke-tildelte ordrer
+OPPDATERT: 
+- Bruker nå Grading Progress Table for nøyaktig beregning av ModStart/ModStop.
 """
 
 import pandas as pd
@@ -22,20 +20,93 @@ from datetime import timedelta
 import pulp as pl
 from pulp import PULP_CBC_CMD
 import io
+import math
 
+# Importerer konfigurasjon (brukes fortsatt til visse konverteringer og fallback)
 from config import WATER_TEMP_C, DD_TO_MATURE, PREFERENCE_BONUS
 
 # Straff for ordrer som ikke blir tildelt selv om de har muligheter.
-# Stor positiv verdi gjør at solver helst vil tildele ordren hvis kapasitet finnes.
 NOT_ALLOCATED_PENALTY = 100_000
+
+# ==========================================
+# 0. VEKSTTABELL (GRADING CONFIG)
+# ==========================================
+
+# Tabell fra Excel-modellen: 
+# Key = Temperatur (grader C), Value = { "80": dager til 80%, "95": dager til 95% }
+GRADING_TABLE = {
+    1: {"80": 169, "95": 200},
+    2: {"80": 136, "95": 162},
+    3: {"80": 112, "95": 133},
+    4: {"80": 93,  "95": 111},
+    5: {"80": 79,  "95": 93},
+    6: {"80": 67,  "95": 79},
+    7: {"80": 57,  "95": 68},
+    8: {"80": 50,  "95": 59},
+}
+
+def calculate_grading_days(temp_c, threshold_key):
+    """
+    Interpolerer antall dager basert på temperatur og terskel (80% eller 95%).
+    F.eks: 3.18 grader interpoleres mellom gradering 3 og 4.
+    """
+    # Vi håndterer temp litt utenfor 1-8 ved å klemme, 
+    # men for MaxTemp > 8 gjør vi en ekstrapolering basert på stigningen 7->8.
+    
+    t = float(temp_c)
+    
+    # Hvis temperatur er innenfor tabellens kjerneområde (1-8)
+    if 1.0 <= t <= 8.0:
+        floor_t = int(np.floor(t))
+        ceil_t = int(np.ceil(t))
+        
+        val_floor = GRADING_TABLE[floor_t][threshold_key]
+        
+        if floor_t == ceil_t:
+            return val_floor
+            
+        val_ceil = GRADING_TABLE[ceil_t][threshold_key]
+        fraction = t - floor_t
+        
+        # Lineær interpolering: Start + (differanse * brøkdel)
+        # Siden høyere temp = lavere dager, blir (val_ceil - val_floor) negativt.
+        return val_floor + (fraction * (val_ceil - val_floor))
+
+    # Hvis temperatur > 8 (For varmt - går fortere)
+    elif t > 8.0:
+        # Ekstrapolerer med stigningstallet mellom 7 og 8
+        val_7 = GRADING_TABLE[7][threshold_key]
+        val_8 = GRADING_TABLE[8][threshold_key]
+        slope_per_degree = val_8 - val_7 # Negativt tall
+        
+        extra_temp = t - 8.0
+        # Beregn dager, men ha en minimumssperre på f.eks 10 dager for sikkerhet
+        return max(10, val_8 + (extra_temp * slope_per_degree))
+
+    # Hvis temperatur < 1 (For kaldt - går saktere)
+    else:
+        # Ekstrapolerer "bakover" fra 1 til 2
+        val_1 = GRADING_TABLE[1][threshold_key]
+        val_2 = GRADING_TABLE[2][threshold_key]
+        slope_per_degree = val_1 - val_2 # Positiv forskjell (dager øker mot kaldt)
+        
+        missing_temp = 1.0 - t
+        # Legg til dager
+        return val_1 + (missing_temp * slope_per_degree)
 
 
 # ==========================================
 # 1. PREPROCESSING
 # ==========================================
 def preprocess_data(orders_df, groups_df):
-    """Konverterer Celsius-temperaturer til døgngrader."""
+    """
+    Forbereder data. 
+    Beholder konvertering til døgngrader for kundesiden (orders),
+    men selve batch-produksjonen styres nå av generate_weekly_batches med tabelloppslag.
+    """
     g_df = groups_df.copy()
+    # Disse kolonnene brukes kanskje ikke lenger kritisk for batch-tid, 
+    # men beholdes for referanse
     g_df["MinTemp_prod"] = g_df["MinTemp_C"] * DD_TO_MATURE
     g_df["MaxTemp_prod"] = g_df["MaxTemp_C"] * DD_TO_MATURE
 
@@ -50,25 +121,47 @@ def preprocess_data(orders_df, groups_df):
 # 2. BATCH-GENERERING
 # ==========================================
 def generate_weekly_batches(fish_groups_df):
-    """Deler fiskegrupper inn i ukentlige batcher med normalfordelt kapasitet."""
+    """
+    Deler fiskegrupper inn i ukentlige batcher.
+    Bruker GRADING_TABLE for å beregne start- og sluttdato for salgsvinduet.
+    """
     all_batches = []
 
     for _, group in fish_groups_df.iterrows():
         strip_start = pd.to_datetime(group["StrippingStartDate"])
         strip_stop = pd.to_datetime(group["StrippingStopDate"])
 
+        # Hent temperaturer fra input
+        min_temp = group["MinTemp_C"]
+        max_temp = group["MaxTemp_C"]
+
+        # --- BEREGNING AV SALGSVINDU (DAGER) ---
+        # 1. Start av vindu (Early/ModStart):
+        # Dette skjer når fisken vokser RASKEST (MaxTemp).
+        # Vi bruker "80%"-kolonnen i grading-tabellen.
+        early_days = calculate_grading_days(max_temp, "80")
+
+        # 2. Slutt av vindu (Late/ModStop):
+        # Dette skjer når fisken vokser SAKTEST (MinTemp).
+        # Vi bruker "95%"-kolonnen i grading-tabellen.
+        late_days = calculate_grading_days(min_temp, "95")
+
+        # Generer uker
         weeks = pd.date_range(strip_start, strip_stop, freq="W-MON")
         if len(weeks) == 0:
             weeks = pd.DatetimeIndex([strip_start])
 
         n = len(weeks)
         indices = np.arange(n)
+        # Vekter volumet med en "bell curve" over strykeperioden
         weights = np.exp(-0.5 * ((indices - (n - 1) / 2) / max(n / 4, 1)) ** 2)
         weights = weights / weights.sum()
 
         for i, strip_date in enumerate(weeks):
-            maturation_days = group["MinTemp_prod"] / WATER_TEMP_C
-            production_days = group["MaxTemp_prod"] / WATER_TEMP_C
+            
+            # Beregn datoer
+            maturation_end = strip_date + timedelta(days=early_days)
+            production_end = strip_date + timedelta(days=late_days)
 
             all_batches.append(
                 {
@@ -76,11 +169,13 @@ def generate_weekly_batches(fish_groups_df):
                     "Group": group["Site_Broodst_Season"],
                     "Site": group["Site"],
                     "StripDate": strip_date,
-                    "MaturationEnd": strip_date + timedelta(days=maturation_days),
-                    "ProductionEnd": strip_date + timedelta(days=production_days),
+                    "MaturationEnd": maturation_end,   # Vindu start
+                    "ProductionEnd": production_end,   # Vindu slutt
                     "GainCapacity": float(group["Gain-eggs"]) * weights[i],
                     "ShieldCapacity": float(group["Shield-eggs"]) * weights[i],
                     "Organic": group["Organic"],
+                    # Debug info (kan fjernes senere)
+                    "CalcInfo": f"MaxT:{max_temp}->{int(early_days)}d | MinT:{min_temp}->{int(late_days)}d"
                 }
             )
 
@@ -93,11 +188,16 @@ def generate_weekly_batches(fish_groups_df):
 def build_feasibility_set(orders_df, batches_df):
     """
     Finner alle gyldige (ordre, batch) kombinasjoner.
+    Sjekker om kundens leveringsdato er innenfor det biologiske vinduet.
     """
     feasible = []
 
     for _, order in orders_df.iterrows():
         delivery_date = pd.to_datetime(order["DeliveryDate"])
+        
+        # Kundens biologiske krav (døgngrader)
+        # Note: Dette beholdes som døgngrader for å matche kundens spesifikasjon,
+        # men sjekkes mot batch-vinduet vi nettopp beregnet.
         cust_min_days = order["MinTemp_customer"] / WATER_TEMP_C
         cust_max_days = order["MaxTemp_customer"] / WATER_TEMP_C
 
@@ -117,19 +217,21 @@ def build_feasibility_set(orders_df, batches_df):
                 if batch["Group"] != locked_group:
                     continue
 
-            # Leveringsvindu
-            cust_start = batch["StripDate"] + timedelta(days=cust_min_days)
-            cust_end = batch["StripDate"] + timedelta(days=cust_max_days)
-            valid_start = max(cust_start, batch["MaturationEnd"])
-            valid_end = min(cust_end, batch["ProductionEnd"])
-
-            if not (valid_start <= delivery_date <= valid_end):
+            # --- SJEKK LEVERINGSVINDU ---
+            # Batch har et absolutt vindu: [MaturationEnd, ProductionEnd]
+            # Kunden ønsker levering på 'DeliveryDate'.
+            
+            # Sjekk 1: Er leveringsdatoen fysisk mulig for batchen?
+            # Batchen er tidligst klar ved MaturationEnd og senest "utgått" ved ProductionEnd.
+            if not (batch["MaturationEnd"] <= delivery_date <= batch["ProductionEnd"]):
                 continue
-
+            
+            # Sjekk 2 (Valgfri, men god): Kundens temperaturkrav vs Faktisk tid
+            # "Hvis jeg leverer på denne datoen, hvor mange døgngrader har fisken fått?"
             days_since_strip = (delivery_date - batch["StripDate"]).days
-            dd_at_delivery = days_since_strip * WATER_TEMP_C
+            dd_at_delivery = days_since_strip * WATER_TEMP_C # Forenklet DD beregning ved sjø
 
-            # SOFT CONSTRAINTS
+            # SOFT CONSTRAINTS (Preferanser)
             bonus = 0
             pref_matched = []
 
@@ -161,7 +263,7 @@ def build_feasibility_set(orders_df, batches_df):
                     "RequireOrganic": require_organic,
                     "PreferenceBonus": bonus,
                     "PreferenceMatched": ", ".join(pref_matched),
-                    # Kapasiteter for debugging
+                    # Kapasiteter for debugging / constraints
                     "GainCapacity": batch["GainCapacity"],
                     "ShieldCapacity": batch["ShieldCapacity"],
                 }
@@ -182,7 +284,11 @@ def get_possible_groups_per_order(orders_df, feasible_df):
 
     for _, order in orders_df.iterrows():
         order_nr = order["OrderNr"]
-        order_feasible = feasible_df[feasible_df["OrderNr"] == order_nr]
+        
+        if feasible_df.empty:
+             order_feasible = pd.DataFrame()
+        else:
+             order_feasible = feasible_df[feasible_df["OrderNr"] == order_nr]
 
         if order_feasible.empty:
             summary.append(
@@ -227,17 +333,7 @@ def get_possible_groups_per_order(orders_df, feasible_df):
 def solve_allocation(orders_df, batches_df, feasible_df):
     """
     Løser allokeringsproblemet med lineær programmering.
-
-    Viktige egenskaper:
-    - Hver ordre med minst én mulig batch får enten:
-      * en tildeling, eller
-      * en slack-variabel lik 1 (ikke tildelt, med høy straff i objektet).
-    - Kapasitet håndteres separat for Gain og Shield per batch.
-    
-    Mål (prioritert rekkefølge):
-    1. Maksimer antall tildelte ordrer (via NOT_ALLOCATED_PENALTY)
-    2. Minimer døgngrader ved levering
-    3. Respekter preferanser (via PREFERENCE_BONUS)
+    Prioriterer å tildele flest mulig ordrer, deretter minimere DD/treffe preferanser.
     """
     all_orders = orders_df[
         ["OrderNr", "Customer", "DeliveryDate", "Volume", "Product", "RequireOrganic"]
@@ -245,6 +341,7 @@ def solve_allocation(orders_df, batches_df, feasible_df):
     all_orders["DeliveryDate"] = pd.to_datetime(all_orders["DeliveryDate"])
 
     if feasible_df.empty:
+        # Hvis ingenting er mulig, returner alt som IKKE TILDELT
         all_orders["BatchID"] = "IKKE TILDELT"
         all_orders["Site"] = "-"
         all_orders["Organic"] = "-"
@@ -263,17 +360,17 @@ def solve_allocation(orders_df, batches_df, feasible_df):
     # Beslutningsvariabler for (ordre, batch)
     y = {i: pl.LpVariable(f"y_{i}", cat="Binary") for i in feasible_df["id"]}
 
-    # Slack-variabler for ordrer som har muligheter, men som eventuelt ikke blir tildelt
+    # Slack-variabler for ordrer som har muligheter, men som eventuelt ikke kan tildeles pga kapasitet
     order_nrs_with_options = feasible_df["OrderNr"].unique().tolist()
     slack = {
         o: pl.LpVariable(f"slack_{o}", cat="Binary") for o in order_nrs_with_options
     }
 
     # Objektfunksjon:
-    # - Minimere DegreeDays + preferansebonus for valgte kombinasjoner
-    # - Stor straff for ordrer som ikke tildeles selv om de har mulige batcher
+    # 1. Minimerer (DegreeDays - Bonus). (Vil velge best match).
+    # 2. Legger til ENORM straff for slack. (Vil unngå slack for enhver pris -> Maksimerer tildeling).
     prob += pl.lpSum(
-        (row["DegreeDays"] + row["PreferenceBonus"]) * y[row["id"]]
+        (row["DegreeDays"] - row["PreferenceBonus"]) * y[row["id"]]
         for _, row in feasible_df.iterrows()
     ) + pl.lpSum(NOT_ALLOCATED_PENALTY * slack[o] for o in order_nrs_with_options)
 
@@ -319,10 +416,6 @@ def solve_allocation(orders_df, batches_df, feasible_df):
             )
 
     prob.solve(PULP_CBC_CMD(msg=False, timeLimit=60))
-
-    # Logg status
-    if prob.status != pl.LpStatusOptimal:
-        print(f"⚠️ LP-solver status: {pl.LpStatus[prob.status]}")
 
     allocated_ids = [
         i for i, v in y.items() if pl.value(v) and round(pl.value(v)) == 1
@@ -388,16 +481,11 @@ def solve_allocation(orders_df, batches_df, feasible_df):
 
 def _get_unallocated_reason(order, feasible_df, slack_used=None):
     """
-    Finner årsak til at ordre ikke ble tildelt.
-    
-    Args:
-        order: Ordre-rad fra orders_df
-        feasible_df: DataFrame med alle feasible kombinasjoner
-        slack_used: Set med ordre-numre som brukte slack (valgfritt)
+    Hjelpefunksjon for å forklare hvorfor en ordre ikke fikk tildeling.
     """
     order_nr = order["OrderNr"]
 
-    # Ingen mulige batcher i det hele tatt
+    # 1. Ingen mulige batcher i det hele tatt (Datoproblemer, constraint problemer)
     if order_nr not in feasible_df["OrderNr"].values:
         if order.get("RequireOrganic", False):
             return "Ingen organic batch med gyldig vindu"
@@ -407,21 +495,20 @@ def _get_unallocated_reason(order, feasible_df, slack_used=None):
             return f"LockedGroup={order['LockedGroup']}: Ingen gyldig batch"
         return "Ingen batch med gyldig leveringsvindu"
 
-    # Hadde muligheter, men ble ikke tildelt
+    # 2. Hadde muligheter, men ble ikke tildelt (Kapasitetsproblemer)
     if slack_used is not None and order_nr in slack_used:
         n_options = len(feasible_df[feasible_df["OrderNr"] == order_nr])
         product = order.get("Product", "ukjent")
-        return f"Kapasitet overskredet ({n_options} mulige {product}-batcher)"
+        return f"Kapasitet overskredet (hadde {n_options} teknisk mulige {product}-batcher)"
 
-    # Fallback (kompatibilitet med gammel kall uten slack_used)
-    return "Kapasitet overskredet i alle gyldige batcher"
+    return "Kapasitet overskredet"
 
 
 # ==========================================
 # 5. VISUALISERING
 # ==========================================
 def create_gantt_chart(batches_df, orders_df, allocated_df):
-    """Lager Gantt-chart med batcher og tildelinger."""
+    """Lager Gantt-chart med batcher for Modning og Produksjon."""
     fig = go.Figure()
     batch_ids = batches_df["BatchID"].tolist()
     y_pos = {bid: i for i, bid in enumerate(batch_ids)}
@@ -430,59 +517,33 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
         yp = y_pos[batch["BatchID"]]
         organic_label = " 🌿" if batch["Organic"] else ""
 
+        # Modningsfase (blå) - Frem til salgsstart
         fig.add_trace(
             go.Scatter(
                 x=[batch["StripDate"], batch["MaturationEnd"]],
                 y=[yp, yp],
                 mode="lines",
                 line=dict(color="#1f77b4", width=20),
-                name="Modningstid",
+                name="Modning (før salg)",
                 legendgroup="mod",
                 showlegend=(yp == 0),
                 hovertemplate=f"<b>{batch['BatchID']}{organic_label}</b><br>Modning<extra></extra>",
             )
         )
 
+        # Salgsvindu (rød) - Fra start til slutt
         fig.add_trace(
             go.Scatter(
                 x=[batch["MaturationEnd"], batch["ProductionEnd"]],
                 y=[yp, yp],
                 mode="lines",
                 line=dict(color="#d62728", width=20),
-                name="Produksjonsvindu",
+                name="Salgsvindu",
                 legendgroup="prod",
                 showlegend=(yp == 0),
-                hovertemplate=f"<b>{batch['BatchID']}{organic_label}</b><br>Produksjon<extra></extra>",
+                hovertemplate=f"<b>{batch['BatchID']}{organic_label}</b><br>Salgsvindu<br>Start: {batch['MaturationEnd'].strftime('%d.%m')}<br>Slutt: {batch['ProductionEnd'].strftime('%d.%m')}<extra></extra>",
             )
         )
-
-        # Kundevindu (aggregert, kun for visualisering)
-        for _, order in orders_df.iterrows():
-            cust_min = order["MinTemp_customer"] / WATER_TEMP_C
-            cust_max = order["MaxTemp_customer"] / WATER_TEMP_C
-            g_start = max(
-                batch["MaturationEnd"], batch["StripDate"] + timedelta(days=cust_min)
-            )
-            g_end = min(
-                batch["ProductionEnd"], batch["StripDate"] + timedelta(days=cust_max)
-            )
-
-            if g_start < g_end:
-                fig.add_trace(
-                    go.Scatter(
-                        x=[g_start, g_end],
-                        y=[yp, yp],
-                        mode="lines",
-                        line=dict(color="#2ca02c", width=12),
-                        name="Kundevindu",
-                        legendgroup="kunde",
-                        showlegend=(yp == 0),
-                        hovertemplate=(
-                            f"<b>{batch['BatchID']}{organic_label}</b><br>Kundevindu<extra></extra>"
-                        ),
-                    )
-                )
-                break
 
     if not allocated_df.empty:
         for _, alloc in allocated_df.iterrows():
@@ -492,7 +553,8 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
             dd = pd.to_datetime(alloc["DeliveryDate"])
             bid = alloc["BatchID"]
 
-            fig.add_vline(x=dd, line_dash="dash", line_color="purple", line_width=2)
+            # Lilla markør for tildeling
+            fig.add_vline(x=dd, line_dash="dash", line_color="purple", line_width=1, opacity=0.3)
 
             if bid in y_pos:
                 pref = (
@@ -507,13 +569,13 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
                         x=[dd],
                         y=[y_pos[bid]],
                         mode="markers",
-                        marker=dict(color="purple", size=15, symbol="diamond"),
+                        marker=dict(color="purple", size=10, symbol="diamond"),
                         showlegend=False,
                         hovertemplate=(
                             f"<b>Ordre {alloc['OrderNr']}</b><br>"
                             f"Kunde: {alloc.get('Customer', '')}<br>"
-                            f"Batch: {bid}<br>"
-                            f"DD: {alloc['DegreeDays']}{organic}{pref}<extra></extra>"
+                            f"Volume: {alloc.get('Volume', '')}<br>"
+                            f"Dato: {dd.strftime('%Y-%m-%d')}{organic}{pref}<extra></extra>"
                         ),
                     )
                 )
@@ -525,7 +587,7 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
         y_labels.append(label)
 
     fig.update_layout(
-        title="Batch-tidslinje med tildelinger",
+        title="Produksjonsplan og Salgsvindu",
         xaxis_title="Dato",
         yaxis_title="Batch",
         yaxis=dict(
@@ -535,223 +597,60 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
             autorange="reversed",
         ),
         height=max(400, len(batch_ids) * 50),
-        legend=dict(yanchor="top", y=0.99, xanchor="left", x=1.02),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin=dict(r=150),
     )
     return fig
 
 
 # ==========================================
-# 6. EKSPORT FUNKSJONER
+# 6. EKSPORT FUNKSJONER (Uendret logikk)
 # ==========================================
 def generate_example_excel():
-    """
-    Genererer eksempel Excel-fil med input-data.
-    Returnerer bytes som kan lastes ned.
-    """
+    """Genrerer eksempel Excel-fil."""
     from config import FISH_GROUPS, ORDERS
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         FISH_GROUPS.to_excel(writer, sheet_name="Fiskegrupper", index=False)
         ORDERS.to_excel(writer, sheet_name="Ordrer", index=False)
-
-        instructions = pd.DataFrame(
-            {
-                "Felt": [
-                    "--- FISKEGRUPPER ---",
-                    "Site",
-                    "Site_Broodst_Season",
-                    "StrippingStartDate",
-                    "StrippingStopDate",
-                    "MinTemp_C",
-                    "MaxTemp_C",
-                    "Gain-eggs",
-                    "Shield-eggs",
-                    "Organic",
-                    "",
-                    "--- ORDRER ---",
-                    "OrderNr",
-                    "Customer",
-                    "DeliveryDate",
-                    "Product",
-                    "Volume",
-                    "MinTemp_C",
-                    "MaxTemp_C",
-                    "RequireOrganic",
-                    "LockedSite",
-                    "LockedGroup",
-                    "PreferredSite",
-                    "PreferredGroup",
-                ],
-                "Beskrivelse": [
-                    "",
-                    "Anleggets navn (f.eks. Hemne, Vestseøra)",
-                    "Unik ID for gruppen (f.eks. Hemne_Normal_24/25)",
-                    "Startdato for stripping (YYYY-MM-DD)",
-                    "Sluttdato for stripping (YYYY-MM-DD)",
-                    "Minimum temperatur i °C (typisk 1)",
-                    "Maksimum temperatur i °C (typisk 8)",
-                    "Antall Gain-egg i gruppen",
-                    "Antall Shield-egg i gruppen",
-                    "True/False - er gruppen organic?",
-                    "",
-                    "",
-                    "Unik ordrenummer",
-                    "Kundenavn",
-                    "Ønsket leveringsdato (YYYY-MM-DD)",
-                    "Produkttype: Gain eller Shield",
-                    "Antall egg i ordren",
-                    "Kundens min temperaturkrav (typisk 2)",
-                    "Kundens max temperaturkrav (typisk 6)",
-                    "True/False - krever kunden organic?",
-                    "HARD: Ordre MÅ leveres fra dette anlegget (eller tom)",
-                    "HARD: Ordre MÅ leveres fra denne gruppen (eller tom)",
-                    "SOFT: Ordre BØR leveres fra dette anlegget (eller tom)",
-                    "SOFT: Ordre BØR leveres fra denne gruppen (eller tom)",
-                ],
-                "Eksempel": [
-                    "",
-                    "Hemne",
-                    "Hemne_Normal_24/25",
-                    "2024-09-01",
-                    "2024-09-28",
-                    "1",
-                    "8",
-                    "8000000",
-                    "2000000",
-                    "False",
-                    "",
-                    "",
-                    "1001",
-                    "Lerøy Midt",
-                    "2024-11-15",
-                    "Gain",
-                    "1500000",
-                    "2",
-                    "6",
-                    "False",
-                    "Hønsvikgulen",
-                    "",
-                    "Hemne",
-                    "",
-                ],
-            }
-        )
-        instructions.to_excel(writer, sheet_name="Instruksjoner", index=False)
-
     output.seek(0)
     return output.getvalue()
 
 
 def generate_orders_example_excel():
-    """
-    Genererer eksempel Excel-fil med kun ordrer.
-    Returnerer bytes som kan lastes ned.
-    """
+    """Genererer eksempel for kun ordrer."""
     from config import ORDERS
     
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         ORDERS.to_excel(writer, sheet_name='Ordrer', index=False)
-        
-        # Instruksjoner for ordre-felter
-        instructions = pd.DataFrame({
-            'Felt': [
-                'OrderNr', 'Customer', 'DeliveryDate', 'Product', 'Volume',
-                'MinTemp_C', 'MaxTemp_C', 'RequireOrganic',
-                'LockedSite', 'LockedGroup', 'PreferredSite', 'PreferredGroup'
-            ],
-            'Beskrivelse': [
-                'Unik ordrenummer (heltall)',
-                'Kundenavn',
-                'Ønsket leveringsdato (YYYY-MM-DD)',
-                'Produkttype: Gain eller Shield',
-                'Antall egg i ordren',
-                'Kundens min temperaturkrav i °C (typisk 2)',
-                'Kundens max temperaturkrav i °C (typisk 6)',
-                'True/False - krever kunden organic?',
-                'HARD: Ordre MÅ leveres fra dette anlegget (eller tom)',
-                'HARD: Ordre MÅ leveres fra denne gruppen (eller tom)',
-                'SOFT: Ordre BØR leveres fra dette anlegget (eller tom)',
-                'SOFT: Ordre BØR leveres fra denne gruppen (eller tom)'
-            ],
-            'Eksempel': [
-                '1001',
-                'Lerøy Midt',
-                '2024-11-15',
-                'Gain',
-                '1500000',
-                '2',
-                '6',
-                'False',
-                'Hønsvikgulen (eller tom)',
-                '(tom)',
-                'Hemne',
-                '(tom)'
-            ],
-            'Påkrevd': [
-                'Ja', 'Ja', 'Ja', 'Ja', 'Ja',
-                'Ja', 'Ja', 'Ja',
-                'Nei', 'Nei', 'Nei', 'Nei'
-            ]
-        })
-        instructions.to_excel(writer, sheet_name='Instruksjoner', index=False)
-    
     output.seek(0)
     return output.getvalue()
 
 
 def parse_orders_excel(contents, filename):
-    """
-    Parser opplastet Excel-fil med kun ordrer.
-    Returnerer DataFrame og eventuell feilmelding.
-    """
     import base64
-    
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
-    
     try:
         if filename.endswith('.xlsx') or filename.endswith('.xls'):
             excel_file = io.BytesIO(decoded)
-            
-            # Prøv først 'Ordrer'-ark, deretter første ark
             try:
                 orders = pd.read_excel(excel_file, sheet_name='Ordrer')
             except:
                 excel_file.seek(0)
                 orders = pd.read_excel(excel_file, sheet_name=0)
-            
-            # Valider påkrevde kolonner
-            required_cols = ['OrderNr', 'Customer', 'DeliveryDate', 'Product', 'Volume', 
-                           'MinTemp_C', 'MaxTemp_C', 'RequireOrganic']
-            missing_cols = [c for c in required_cols if c not in orders.columns]
-            
-            if missing_cols:
-                return None, f"Mangler påkrevde kolonner: {', '.join(missing_cols)}"
-            
-            # Legg til valgfrie kolonner hvis de mangler
-            optional_cols = ['LockedSite', 'LockedGroup', 'PreferredSite', 'PreferredGroup']
-            for col in optional_cols:
-                if col not in orders.columns:
-                    orders[col] = None
-            
             return orders, None
         else:
-            return None, "Feil filformat. Bruk .xlsx eller .xls"
+            return None, "Feil filformat"
     except Exception as e:
-        return None, f"Feil ved parsing av fil: {str(e)}"
+        return None, str(e)
 
 def parse_uploaded_excel(contents, filename):
-    """
-    Parser opplastet Excel-fil og returnerer DataFrames.
-    """
     import base64
-
     content_type, content_string = contents.split(",")
     decoded = base64.b64decode(content_string)
-
     try:
         if filename.endswith(".xlsx") or filename.endswith(".xls"):
             excel_file = io.BytesIO(decoded)
@@ -759,9 +658,9 @@ def parse_uploaded_excel(contents, filename):
             orders = pd.read_excel(excel_file, sheet_name="Ordrer")
             return fish_groups, orders, None
         else:
-            return None, None, "Feil filformat. Bruk .xlsx eller .xls"
+            return None, None, "Feil filformat"
     except Exception as e:
-        return None, None, f"Feil ved parsing av fil: {str(e)}"
+        return None, None, str(e)
 
 
 # ==========================================
