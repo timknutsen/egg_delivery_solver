@@ -247,12 +247,6 @@ def build_feasibility_set(orders_df, batches_df, window_mode="week"):
     for _, order in orders_df.iterrows():
         delivery_date = pd.to_datetime(order["DeliveryDate"])
         
-        # Kundens biologiske krav (døgngrader)
-        # Note: Dette beholdes som døgngrader for å matche kundens spesifikasjon,
-        # men sjekkes mot batch-vinduet vi nettopp beregnet.
-        cust_min_days = order["MinTemp_customer"] / WATER_TEMP_C
-        cust_max_days = order["MaxTemp_customer"] / WATER_TEMP_C
-
         for _, batch in batches_df.iterrows():
             # HARD CONSTRAINTS
             require_organic = order.get("RequireOrganic", False)
