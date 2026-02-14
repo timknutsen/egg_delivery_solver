@@ -28,6 +28,32 @@ from config import WATER_TEMP_C, DD_TO_MATURE, PREFERENCE_BONUS
 # Straff for ordrer som ikke blir tildelt selv om de har muligheter.
 NOT_ALLOCATED_PENALTY = 100_000
 
+REQUIRED_FISH_COLUMNS = [
+    "Site",
+    "Site_Broodst_Season",
+    "StrippingStartDate",
+    "StrippingStopDate",
+    "MinTemp_C",
+    "MaxTemp_C",
+    "Gain-eggs",
+    "Shield-eggs",
+    "Organic",
+]
+
+REQUIRED_ORDER_COLUMNS = [
+    "OrderNr",
+    "DeliveryDate",
+    "Product",
+    "Volume",
+    "MinTemp_C",
+    "MaxTemp_C",
+    "RequireOrganic",
+    "LockedSite",
+    "LockedGroup",
+    "PreferredSite",
+    "PreferredGroup",
+]
+
 # ==========================================
 # 0. VEKSTTABELL (GRADING CONFIG)
 # ==========================================
@@ -682,6 +708,16 @@ def generate_orders_example_excel():
 
 def parse_orders_excel(contents, filename):
     import base64
+
+    def _validate_required_columns(df, required_columns, label):
+        missing = [c for c in required_columns if c not in df.columns]
+        if missing:
+            return (
+                f"Mangler kolonner i '{label}': {', '.join(missing)}. "
+                f"Forventet kolonner inkluderer: {', '.join(required_columns)}"
+            )
+        return None
+
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
     try:
@@ -692,6 +728,11 @@ def parse_orders_excel(contents, filename):
             except:
                 excel_file.seek(0)
                 orders = pd.read_excel(excel_file, sheet_name=0)
+            validation_error = _validate_required_columns(
+                orders, REQUIRED_ORDER_COLUMNS, "Ordrer"
+            )
+            if validation_error:
+                return None, validation_error
             return orders, None
         else:
             return None, "Feil filformat"
@@ -700,6 +741,16 @@ def parse_orders_excel(contents, filename):
 
 def parse_uploaded_excel(contents, filename):
     import base64
+
+    def _validate_required_columns(df, required_columns, label):
+        missing = [c for c in required_columns if c not in df.columns]
+        if missing:
+            return (
+                f"Mangler kolonner i '{label}': {', '.join(missing)}. "
+                f"Forventet kolonner inkluderer: {', '.join(required_columns)}"
+            )
+        return None
+
     content_type, content_string = contents.split(",")
     decoded = base64.b64decode(content_string)
     try:
@@ -707,6 +758,16 @@ def parse_uploaded_excel(contents, filename):
             excel_file = io.BytesIO(decoded)
             fish_groups = pd.read_excel(excel_file, sheet_name="Fiskegrupper")
             orders = pd.read_excel(excel_file, sheet_name="Ordrer")
+            fish_validation_error = _validate_required_columns(
+                fish_groups, REQUIRED_FISH_COLUMNS, "Fiskegrupper"
+            )
+            if fish_validation_error:
+                return None, None, fish_validation_error
+            orders_validation_error = _validate_required_columns(
+                orders, REQUIRED_ORDER_COLUMNS, "Ordrer"
+            )
+            if orders_validation_error:
+                return None, None, orders_validation_error
             return fish_groups, orders, None
         else:
             return None, None, "Feil filformat"

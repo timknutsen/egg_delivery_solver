@@ -127,6 +127,8 @@ app.layout = dbc.Container([
                 ],
                 value="week",
                 inline=True,
+                persistence=True,
+                persistence_type="local",
             ),
             html.Small(
                 "Uke-modus godkjenner ordre/batch i samme uke (mandag-søndag).",
@@ -146,6 +148,8 @@ app.layout = dbc.Container([
                 ],
                 value="table",
                 inline=True,
+                persistence=True,
+                persistence_type="local",
             ),
             html.Small(
                 "Velg beregning av dager fra temperatur for batchvindu.",
@@ -338,6 +342,7 @@ def reset_data(n_clicks):
     State('data-store', 'data'),
     State("window-mode", "value"),
     State("growth-model", "value"),
+    running=[(Output("run-btn", "disabled"), True, False)],
     prevent_initial_call=True
 )
 def on_run(n_clicks, store_data, window_mode, growth_model):
@@ -577,7 +582,11 @@ def export_results(n_clicks, store_data, window_mode, growth_model):
             orders.to_excel(writer, sheet_name='Input - Ordrer', index=False)
         
         output.seek(0)
-        return dcc.send_bytes(output.getvalue(), "allokeringsresultater.xlsx")
+        date_tag = pd.Timestamp.today().strftime("%Y-%m-%d")
+        filename = (
+            f"allokeringsresultater_{window_mode}_{growth_model}_{date_tag}.xlsx"
+        )
+        return dcc.send_bytes(output.getvalue(), filename)
         
     except Exception as e:
         print(f"Export error: {e}")
