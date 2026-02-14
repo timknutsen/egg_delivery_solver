@@ -8,6 +8,7 @@ if importlib.util.find_spec("pulp") is None:
 
 from logic import (
     build_feasibility_set,
+    calculate_formula_days,
     calculate_grading_days,
     generate_weekly_batches,
     preprocess_data,
@@ -19,6 +20,12 @@ class LogicTests(unittest.TestCase):
     def test_calculate_grading_days_interpolates_between_table_values(self):
         # 80%-days: temp 3 => 112, temp 4 => 93, midpoint should be 102.5
         self.assertAlmostEqual(calculate_grading_days(3.5, "80"), 102.5)
+
+    def test_calculate_formula_days_is_monotonic(self):
+        # Høyere temperatur skal gi færre dager.
+        cold = calculate_formula_days(2.0, "80")
+        warm = calculate_formula_days(6.0, "80")
+        self.assertGreater(cold, warm)
 
     def test_generate_weekly_batches_creates_expected_batch_windows(self):
         fish_groups = pd.DataFrame(
@@ -42,6 +49,28 @@ class LogicTests(unittest.TestCase):
         self.assertTrue((batches["MaturationEnd"] <= batches["ProductionEnd"]).all())
         self.assertAlmostEqual(float(batches["GainCapacity"].sum()), 1000.0, places=6)
         self.assertAlmostEqual(float(batches["ShieldCapacity"].sum()), 500.0, places=6)
+
+    def test_generate_weekly_batches_supports_formula_model(self):
+        fish_groups = pd.DataFrame(
+            [
+                {
+                    "Site": "TestSite",
+                    "Site_Broodst_Season": "GroupFormula",
+                    "StrippingStartDate": "2024-09-01",
+                    "StrippingStopDate": "2024-09-15",
+                    "MinTemp_C": 2.0,
+                    "MaxTemp_C": 6.0,
+                    "Gain-eggs": 1000.0,
+                    "Shield-eggs": 500.0,
+                    "Organic": False,
+                }
+            ]
+        )
+
+        batches = generate_weekly_batches(fish_groups, growth_model="formula")
+        self.assertEqual(len(batches), 2)
+        self.assertTrue((batches["MaturationEnd"] <= batches["ProductionEnd"]).all())
+        self.assertTrue(batches["CalcInfo"].str.contains("Model:formula").all())
 
     def test_build_feasibility_set_respects_window_and_hard_constraints(self):
         orders = pd.DataFrame(

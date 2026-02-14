@@ -95,6 +95,25 @@ def calculate_grading_days(temp_c, threshold_key):
         return val_1 + (missing_temp * slope_per_degree)
 
 
+def calculate_formula_days(temp_c, threshold_key):
+    """
+    Beregner dager fra temperatur basert på klekkekalkulator-formelen fra Excel.
+    threshold_key styrer andel: "80" -> 0.80, "95" -> 0.95.
+    """
+    threshold_ratio_map = {"80": 0.80, "95": 0.95}
+    if threshold_key not in threshold_ratio_map:
+        raise ValueError(f"Ugyldig threshold_key={threshold_key}. Bruk '80' eller '95'.")
+
+    t = float(temp_c)
+    if t <= -11.0:
+        raise ValueError("Temperatur må være > -11.0 for formelmodellen.")
+
+    threshold_ratio = threshold_ratio_map[threshold_key]
+    exponent = (2.6562 * math.log10(t + 11.0)) - 5.1908
+    days = threshold_ratio / (10 ** exponent)
+    return max(1.0, days)
+
+
 # ==========================================
 # 1. PREPROCESSING
 # ==========================================
@@ -120,10 +139,12 @@ def preprocess_data(orders_df, groups_df):
 # ==========================================
 # 2. BATCH-GENERERING
 # ==========================================
-def generate_weekly_batches(fish_groups_df):
+def generate_weekly_batches(fish_groups_df, growth_model="table"):
     """
     Deler fiskegrupper inn i ukentlige batcher.
-    Bruker GRADING_TABLE for å beregne start- og sluttdato for salgsvinduet.
+    growth_model:
+    - "table": bruker GRADING_TABLE interpolasjon.
+    - "formula": bruker klekkekalkulator-formelen.
     """
     all_batches = []
 
@@ -136,15 +157,18 @@ def generate_weekly_batches(fish_groups_df):
         max_temp = group["MaxTemp_C"]
 
         # --- BEREGNING AV SALGSVINDU (DAGER) ---
-        # 1. Start av vindu (Early/ModStart):
-        # Dette skjer når fisken vokser RASKEST (MaxTemp).
-        # Vi bruker "80%"-kolonnen i grading-tabellen.
-        early_days = calculate_grading_days(max_temp, "80")
-
-        # 2. Slutt av vindu (Late/ModStop):
-        # Dette skjer når fisken vokser SAKTEST (MinTemp).
-        # Vi bruker "95%"-kolonnen i grading-tabellen.
-        late_days = calculate_grading_days(min_temp, "95")
+        # 1. Start av vindu (Early/ModStart): raskeste vekst (MaxTemp), 80%.
+        # 2. Slutt av vindu (Late/ModStop): sakteste vekst (MinTemp), 95%.
+        if growth_model == "table":
+            early_days = calculate_grading_days(max_temp, "80")
+            late_days = calculate_grading_days(min_temp, "95")
+        elif growth_model == "formula":
+            early_days = calculate_formula_days(max_temp, "80")
+            late_days = calculate_formula_days(min_temp, "95")
+        else:
+            raise ValueError(
+                f"Ugyldig growth_model={growth_model}. Bruk 'table' eller 'formula'."
+            )
 
         # Generer uker
         weeks = pd.date_range(strip_start, strip_stop, freq="W-MON")
@@ -175,7 +199,10 @@ def generate_weekly_batches(fish_groups_df):
                     "ShieldCapacity": float(group["Shield-eggs"]) * weights[i],
                     "Organic": group["Organic"],
                     # Debug info (kan fjernes senere)
-                    "CalcInfo": f"MaxT:{max_temp}->{int(early_days)}d | MinT:{min_temp}->{int(late_days)}d"
+                    "CalcInfo": (
+                        f"Model:{growth_model} | "
+                        f"MaxT:{max_temp}->{int(early_days)}d | MinT:{min_temp}->{int(late_days)}d"
+                    ),
                 }
             )
 
@@ -696,10 +723,12 @@ def parse_uploaded_excel(contents, filename):
 # ==========================================
 # 7. HOVEDFUNKSJON
 # ==========================================
-def run_allocation(fish_groups_df, orders_df, window_mode="week"):
+def run_allocation(
+    fish_groups_df, orders_df, window_mode="week", growth_model="table"
+):
     """Kjører hele allokeringsprosessen og returnerer resultater."""
     orders, groups = preprocess_data(orders_df, fish_groups_df)
-    batches = generate_weekly_batches(groups)
+    batches = generate_weekly_batches(groups, growth_model=growth_model)
     feasible = build_feasibility_set(orders, batches, window_mode=window_mode)
     possible_groups = get_possible_groups_per_order(orders, feasible)
     results_df, allocated_df = solve_allocation(orders, batches, feasible)

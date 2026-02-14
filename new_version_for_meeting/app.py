@@ -134,6 +134,25 @@ app.layout = dbc.Container([
             ),
         ]),
     ], className="mb-4"),
+
+    dbc.Card([
+        dbc.CardHeader("🧪 Vekstmodell"),
+        dbc.CardBody([
+            dbc.RadioItems(
+                id="growth-model",
+                options=[
+                    {"label": "Graderingstabell (table)", "value": "table"},
+                    {"label": "Klekkekalkulator-formel (formula)", "value": "formula"},
+                ],
+                value="table",
+                inline=True,
+            ),
+            html.Small(
+                "Velg beregning av dager fra temperatur for batchvindu.",
+                className="text-muted",
+            ),
+        ]),
+    ], className="mb-4"),
     
     # Input data visning
     dbc.Card([
@@ -318,9 +337,10 @@ def reset_data(n_clicks):
     Input("run-btn", "n_clicks"),
     State('data-store', 'data'),
     State("window-mode", "value"),
+    State("growth-model", "value"),
     prevent_initial_call=True
 )
-def on_run(n_clicks, store_data, window_mode):
+def on_run(n_clicks, store_data, window_mode, growth_model):
     try:
         # Velg data basert på hva som er lastet opp
         if store_data.get('use_uploaded'):
@@ -336,7 +356,12 @@ def on_run(n_clicks, store_data, window_mode):
             fish_groups = FISH_GROUPS
             orders = ORDERS
         
-        result = run_allocation(fish_groups, orders, window_mode=window_mode)
+        result = run_allocation(
+            fish_groups,
+            orders,
+            window_mode=window_mode,
+            growth_model=growth_model,
+        )
         results_df = result['results']
         possible_groups_df = result['possible_groups']
         
@@ -391,7 +416,11 @@ def on_run(n_clicks, store_data, window_mode):
                         ], color="success", outline=True), width=3),
                     ], className="mb-4"),
                     dbc.Alert(
-                        f"Aktiv leveringsvindu-modus: {'Uke' if window_mode == 'week' else 'Dag'}",
+                        (
+                            f"Aktiv leveringsvindu-modus: "
+                            f"{'Uke' if window_mode == 'week' else 'Dag'} | "
+                            f"Vekstmodell: {growth_model}"
+                        ),
                         color="info",
                         className="py-2",
                     ),
@@ -500,9 +529,10 @@ def on_run(n_clicks, store_data, window_mode):
     Input("export-results-btn", "n_clicks"),
     State('data-store', 'data'),
     State("window-mode", "value"),
+    State("growth-model", "value"),
     prevent_initial_call=True
 )
-def export_results(n_clicks, store_data, window_mode):
+def export_results(n_clicks, store_data, window_mode, growth_model):
     try:
         # Velg data basert på hva som er lastet opp
         if store_data.get('use_uploaded'):
@@ -516,7 +546,12 @@ def export_results(n_clicks, store_data, window_mode):
             fish_groups = FISH_GROUPS
             orders = ORDERS
         
-        result = run_allocation(fish_groups, orders, window_mode=window_mode)
+        result = run_allocation(
+            fish_groups,
+            orders,
+            window_mode=window_mode,
+            growth_model=growth_model,
+        )
         
         # Lag Excel med flere ark
         import io
