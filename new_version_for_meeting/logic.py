@@ -185,10 +185,35 @@ def generate_weekly_batches(fish_groups_df):
 # ==========================================
 # 3. FEASIBILITY-SJEKK
 # ==========================================
-def build_feasibility_set(orders_df, batches_df):
+def _week_start(ts):
+    """Returnerer mandag i uken til datoen."""
+    ts = pd.to_datetime(ts)
+    return (ts - pd.Timedelta(days=ts.weekday())).normalize()
+
+
+def _is_delivery_in_window(delivery_date, maturation_end, production_end, window_mode):
+    """Sjekker om leveringsdato er innenfor batch-vindu (dag- eller uke-nivå)."""
+    delivery_date = pd.to_datetime(delivery_date)
+    maturation_end = pd.to_datetime(maturation_end)
+    production_end = pd.to_datetime(production_end)
+
+    if window_mode == "day":
+        return maturation_end <= delivery_date <= production_end
+
+    if window_mode == "week":
+        delivery_week = _week_start(delivery_date)
+        maturation_week = _week_start(maturation_end)
+        production_week = _week_start(production_end)
+        return maturation_week <= delivery_week <= production_week
+
+    raise ValueError(f"Ugyldig window_mode={window_mode}. Bruk 'day' eller 'week'.")
+
+
+def build_feasibility_set(orders_df, batches_df, window_mode="week"):
     """
     Finner alle gyldige (ordre, batch) kombinasjoner.
     Sjekker om kundens leveringsdato er innenfor det biologiske vinduet.
+    window_mode='week' betyr at sjekk gjøres på ukenivå (mandag-søndag).
     """
     feasible = []
 
@@ -222,8 +247,13 @@ def build_feasibility_set(orders_df, batches_df):
             # Kunden ønsker levering på 'DeliveryDate'.
             
             # Sjekk 1: Er leveringsdatoen fysisk mulig for batchen?
-            # Batchen er tidligst klar ved MaturationEnd og senest "utgått" ved ProductionEnd.
-            if not (batch["MaturationEnd"] <= delivery_date <= batch["ProductionEnd"]):
+            # Kan kjøres enten på dag eller uke-nivå.
+            if not _is_delivery_in_window(
+                delivery_date,
+                batch["MaturationEnd"],
+                batch["ProductionEnd"],
+                window_mode=window_mode,
+            ):
                 continue
             
             # Sjekk 2 (Valgfri, men god): Kundens temperaturkrav vs Faktisk tid
@@ -666,11 +696,11 @@ def parse_uploaded_excel(contents, filename):
 # ==========================================
 # 7. HOVEDFUNKSJON
 # ==========================================
-def run_allocation(fish_groups_df, orders_df):
+def run_allocation(fish_groups_df, orders_df, window_mode="week"):
     """Kjører hele allokeringsprosessen og returnerer resultater."""
     orders, groups = preprocess_data(orders_df, fish_groups_df)
     batches = generate_weekly_batches(groups)
-    feasible = build_feasibility_set(orders, batches)
+    feasible = build_feasibility_set(orders, batches, window_mode=window_mode)
     possible_groups = get_possible_groups_per_order(orders, feasible)
     results_df, allocated_df = solve_allocation(orders, batches, feasible)
     chart = create_gantt_chart(batches, orders, allocated_df)
