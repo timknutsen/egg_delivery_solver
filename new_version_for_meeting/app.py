@@ -114,6 +114,26 @@ app.layout = dbc.Container([
             ], className="text-muted"),
         ])
     ], className="mb-4"),
+
+    # Leveringsvindu-modus
+    dbc.Card([
+        dbc.CardHeader("⚙️ Leveringsvindu"),
+        dbc.CardBody([
+            dbc.RadioItems(
+                id="window-mode",
+                options=[
+                    {"label": "Uke (anbefalt)", "value": "week"},
+                    {"label": "Dag (eksakt dato)", "value": "day"},
+                ],
+                value="week",
+                inline=True,
+            ),
+            html.Small(
+                "Uke-modus godkjenner ordre/batch i samme uke (mandag-søndag).",
+                className="text-muted",
+            ),
+        ]),
+    ], className="mb-4"),
     
     # Input data visning
     dbc.Card([
@@ -297,9 +317,10 @@ def reset_data(n_clicks):
     Output("output", "children"),
     Input("run-btn", "n_clicks"),
     State('data-store', 'data'),
+    State("window-mode", "value"),
     prevent_initial_call=True
 )
-def on_run(n_clicks, store_data):
+def on_run(n_clicks, store_data, window_mode):
     try:
         # Velg data basert på hva som er lastet opp
         if store_data.get('use_uploaded'):
@@ -315,7 +336,7 @@ def on_run(n_clicks, store_data):
             fish_groups = FISH_GROUPS
             orders = ORDERS
         
-        result = run_allocation(fish_groups, orders)
+        result = run_allocation(fish_groups, orders, window_mode=window_mode)
         results_df = result['results']
         possible_groups_df = result['possible_groups']
         
@@ -369,6 +390,11 @@ def on_run(n_clicks, store_data):
                             ])
                         ], color="success", outline=True), width=3),
                     ], className="mb-4"),
+                    dbc.Alert(
+                        f"Aktiv leveringsvindu-modus: {'Uke' if window_mode == 'week' else 'Dag'}",
+                        color="info",
+                        className="py-2",
+                    ),
                     
                     html.Hr(),
                     
@@ -473,9 +499,10 @@ def on_run(n_clicks, store_data):
     Output("download-results", "data"),
     Input("export-results-btn", "n_clicks"),
     State('data-store', 'data'),
+    State("window-mode", "value"),
     prevent_initial_call=True
 )
-def export_results(n_clicks, store_data):
+def export_results(n_clicks, store_data, window_mode):
     try:
         # Velg data basert på hva som er lastet opp
         if store_data.get('use_uploaded'):
@@ -489,7 +516,7 @@ def export_results(n_clicks, store_data):
             fish_groups = FISH_GROUPS
             orders = ORDERS
         
-        result = run_allocation(fish_groups, orders)
+        result = run_allocation(fish_groups, orders, window_mode=window_mode)
         
         # Lag Excel med flere ark
         import io
