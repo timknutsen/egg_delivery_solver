@@ -594,7 +594,7 @@ def _get_unallocated_reason(order, feasible_df, slack_used=None):
 # ==========================================
 # 5. VISUALISERING
 # ==========================================
-def create_gantt_chart(batches_df, orders_df, allocated_df):
+def create_gantt_chart(batches_df, allocated_df, window_mode="week"):
     """Lager Gantt-chart med batcher for Modning og Produksjon."""
     fig = go.Figure()
     batch_ids = batches_df["BatchID"].tolist()
@@ -628,20 +628,42 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
                 name="Salgsvindu",
                 legendgroup="prod",
                 showlegend=(yp == 0),
-                hovertemplate=f"<b>{batch['BatchID']}{organic_label}</b><br>Salgsvindu<br>Start: {batch['MaturationEnd'].strftime('%d.%m')}<br>Slutt: {batch['ProductionEnd'].strftime('%d.%m')}<extra></extra>",
+                hovertemplate=(
+                    f"<b>{batch['BatchID']}{organic_label}</b><br>Salgsvindu<br>"
+                    f"Start: {batch['MaturationEnd'].strftime('%Y-%m-%d')}<br>"
+                    f"Slutt: {batch['ProductionEnd'].strftime('%Y-%m-%d')}<extra></extra>"
+                ),
             )
         )
 
     if not allocated_df.empty:
+        if window_mode == "week":
+            # Marker aktive leveringsuker for å gjøre uke-basert validering visuelt tydelig.
+            unique_weeks = set()
+            for _, alloc in allocated_df.iterrows():
+                if alloc["BatchID"] == "IKKE TILDELT":
+                    continue
+                dd = pd.to_datetime(alloc["DeliveryDate"])
+                week_start = (dd - pd.Timedelta(days=dd.weekday())).normalize()
+                week_end = week_start + pd.Timedelta(days=6, hours=23, minutes=59)
+                unique_weeks.add((week_start, week_end))
+
+            for week_start, week_end in sorted(unique_weeks):
+                fig.add_vrect(
+                    x0=week_start,
+                    x1=week_end,
+                    fillcolor="purple",
+                    opacity=0.05,
+                    line_width=0,
+                    layer="below",
+                )
+
         for _, alloc in allocated_df.iterrows():
             if alloc["BatchID"] == "IKKE TILDELT":
                 continue
 
             dd = pd.to_datetime(alloc["DeliveryDate"])
             bid = alloc["BatchID"]
-
-            # Lilla markør for tildeling
-            fig.add_vline(x=dd, line_dash="dash", line_color="purple", line_width=1, opacity=0.3)
 
             if bid in y_pos:
                 pref = (
@@ -650,6 +672,11 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
                     else ""
                 )
                 organic = "<br>🌿 Organic" if alloc.get("Organic") == "✓" else ""
+                mode_note = (
+                    "<br>Validering: uke"
+                    if window_mode == "week"
+                    else "<br>Validering: dag"
+                )
 
                 fig.add_trace(
                     go.Scatter(
@@ -662,7 +689,7 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
                             f"<b>Ordre {alloc['OrderNr']}</b><br>"
                             f"Kunde: {alloc.get('Customer', '')}<br>"
                             f"Volume: {alloc.get('Volume', '')}<br>"
-                            f"Dato: {dd.strftime('%Y-%m-%d')}{organic}{pref}<extra></extra>"
+                            f"Dato: {dd.strftime('%Y-%m-%d')}{organic}{pref}{mode_note}<extra></extra>"
                         ),
                     )
                 )
@@ -674,7 +701,10 @@ def create_gantt_chart(batches_df, orders_df, allocated_df):
         y_labels.append(label)
 
     fig.update_layout(
-        title="Produksjonsplan og Salgsvindu",
+        title=(
+            "Produksjonsplan og Salgsvindu"
+            + (" (ukevalidering)" if window_mode == "week" else " (dagvalidering)")
+        ),
         xaxis_title="Dato",
         yaxis_title="Batch",
         yaxis=dict(
@@ -779,7 +809,7 @@ def run_allocation(
     feasible = build_feasibility_set(orders, batches, window_mode=window_mode)
     possible_groups = get_possible_groups_per_order(orders, feasible)
     results_df, allocated_df = solve_allocation(orders, batches, feasible)
-    chart = create_gantt_chart(batches, orders, allocated_df)
+    chart = create_gantt_chart(batches, allocated_df, window_mode=window_mode)
 
     return {
         "batches": batches,
