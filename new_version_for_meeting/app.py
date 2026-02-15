@@ -15,7 +15,6 @@ from dash.dependencies import Input, Output, State
 import pandas as pd
 import traceback
 import os
-import base64
 
 from config import FISH_GROUPS, ORDERS, WATER_TEMP_C
 from logic import (
@@ -32,8 +31,38 @@ from logic import (
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
 server = app.server
 
-# Store for uploaded data
-uploaded_data = {'fish_groups': None, 'orders': None}
+
+def _df_to_store_json(df):
+    if df is None:
+        return None
+    return df.to_json(orient="split", date_format="iso")
+
+
+def _store_json_to_df(payload):
+    if payload is None:
+        return None
+    return pd.read_json(payload, orient="split")
+
+
+def _resolve_active_data(store_data, uploaded_store):
+    fish_groups = FISH_GROUPS
+    orders = ORDERS
+
+    uploaded_store = uploaded_store or {}
+    uploaded_fish = _store_json_to_df(uploaded_store.get("fish_groups"))
+    uploaded_orders = _store_json_to_df(uploaded_store.get("orders"))
+
+    if store_data.get("use_uploaded"):
+        if store_data.get("orders_only"):
+            if uploaded_orders is not None:
+                orders = uploaded_orders
+        else:
+            if uploaded_fish is not None:
+                fish_groups = uploaded_fish
+            if uploaded_orders is not None:
+                orders = uploaded_orders
+
+    return fish_groups, orders
 
 # ==========================================
 # LAYOUT
@@ -181,7 +210,8 @@ app.layout = dbc.Container([
     dcc.Loading(html.Div(id="output")),
     
     # Hidden store for data
-    dcc.Store(id='data-store', data={'use_uploaded': False, 'orders_only': False})
+    dcc.Store(id='data-store', data={'use_uploaded': False, 'orders_only': False}),
+    dcc.Store(id='uploaded-store', storage_type='session', data={'fish_groups': None, 'orders': None})
 ], fluid=True)
 
 
@@ -193,23 +223,11 @@ app.layout = dbc.Container([
 @app.callback(
     [Output('fish-table-container', 'children'),
      Output('orders-table-container', 'children')],
-    [Input('data-store', 'data')]
+    [Input('data-store', 'data')],
+    [State('uploaded-store', 'data')]
 )
-def update_tables(store_data):
-    fish_df = FISH_GROUPS
-    orders_df = ORDERS
-    
-    if store_data.get('use_uploaded'):
-        if store_data.get('orders_only'):
-            # Kun ordrer lastet opp - bruk default fiskegrupper
-            if uploaded_data['orders'] is not None:
-                orders_df = uploaded_data['orders']
-        else:
-            # Komplett fil lastet opp
-            if uploaded_data['fish_groups'] is not None:
-                fish_df = uploaded_data['fish_groups']
-            if uploaded_data['orders'] is not None:
-                orders_df = uploaded_data['orders']
+def update_tables(store_data, uploaded_store):
+    fish_df, orders_df = _resolve_active_data(store_data, uploaded_store)
     
     fish_table = dash_table.DataTable(
         data=fish_df.to_dict('records'),
@@ -263,54 +281,58 @@ def download_orders_example(n_clicks):
 # Håndter komplett fil-opplasting
 @app.callback(
     [Output('upload-status', 'children'),
-     Output('data-store', 'data', allow_duplicate=True)],
+     Output('data-store', 'data', allow_duplicate=True),
+     Output('uploaded-store', 'data', allow_duplicate=True)],
     Input('upload-data', 'contents'),
     State('upload-data', 'filename'),
     prevent_initial_call=True
 )
 def handle_upload(contents, filename):
     if contents is None:
-        return "", {'use_uploaded': False, 'orders_only': False}
+        return "", {'use_uploaded': False, 'orders_only': False}, {'fish_groups': None, 'orders': None}
     
     fish_groups, orders, error = parse_uploaded_excel(contents, filename)
     
     if error:
-        return dbc.Alert(error, color="danger", className="py-1 px-2 mb-0"), {'use_uploaded': False, 'orders_only': False}
-    
-    # Lagre i global store
-    uploaded_data['fish_groups'] = fish_groups
-    uploaded_data['orders'] = orders
+        return (
+            dbc.Alert(error, color="danger", className="py-1 px-2 mb-0"),
+            {'use_uploaded': False, 'orders_only': False},
+            {'fish_groups': None, 'orders': None},
+        )
     
     return (
         dbc.Alert(f"✅ {filename}: {len(fish_groups)} grupper, {len(orders)} ordrer", color="success", className="py-1 px-2 mb-0"),
-        {'use_uploaded': True, 'orders_only': False}
+        {'use_uploaded': True, 'orders_only': False},
+        {'fish_groups': _df_to_store_json(fish_groups), 'orders': _df_to_store_json(orders)}
     )
 
 
 # Håndter ordre-fil opplasting
 @app.callback(
     [Output('upload-orders-status', 'children'),
-     Output('data-store', 'data', allow_duplicate=True)],
+     Output('data-store', 'data', allow_duplicate=True),
+     Output('uploaded-store', 'data', allow_duplicate=True)],
     Input('upload-orders-only', 'contents'),
     State('upload-orders-only', 'filename'),
     prevent_initial_call=True
 )
 def handle_orders_upload(contents, filename):
     if contents is None:
-        return "", {'use_uploaded': False, 'orders_only': False}
+        return "", {'use_uploaded': False, 'orders_only': False}, {'fish_groups': None, 'orders': None}
     
     orders, error = parse_orders_excel(contents, filename)
     
     if error:
-        return dbc.Alert(error, color="danger", className="py-1 px-2 mb-0"), {'use_uploaded': False, 'orders_only': False}
-    
-    # Lagre kun ordrer (fiskegrupper = default)
-    uploaded_data['fish_groups'] = None
-    uploaded_data['orders'] = orders
+        return (
+            dbc.Alert(error, color="danger", className="py-1 px-2 mb-0"),
+            {'use_uploaded': False, 'orders_only': False},
+            {'fish_groups': None, 'orders': None},
+        )
     
     return (
         dbc.Alert(f"✅ {filename}: {len(orders)} ordrer (bruker default grupper)", color="success", className="py-1 px-2 mb-0"),
-        {'use_uploaded': True, 'orders_only': True}
+        {'use_uploaded': True, 'orders_only': True},
+        {'fish_groups': None, 'orders': _df_to_store_json(orders)}
     )
 
 
@@ -319,19 +341,18 @@ def handle_orders_upload(contents, filename):
     [Output('reset-status', 'children'),
      Output('data-store', 'data', allow_duplicate=True),
      Output('upload-status', 'children', allow_duplicate=True),
-     Output('upload-orders-status', 'children', allow_duplicate=True)],
+     Output('upload-orders-status', 'children', allow_duplicate=True),
+     Output('uploaded-store', 'data', allow_duplicate=True)],
     Input('reset-btn', 'n_clicks'),
     prevent_initial_call=True
 )
 def reset_data(n_clicks):
-    uploaded_data['fish_groups'] = None
-    uploaded_data['orders'] = None
-    
     return (
         dbc.Alert("✅ Tilbakestilt til default data", color="info", className="py-1 px-2 mb-0"),
         {'use_uploaded': False, 'orders_only': False},
         "",
-        ""
+        "",
+        {'fish_groups': None, 'orders': None},
     )
 
 
@@ -340,26 +361,15 @@ def reset_data(n_clicks):
     Output("output", "children"),
     Input("run-btn", "n_clicks"),
     State('data-store', 'data'),
+    State('uploaded-store', 'data'),
     State("window-mode", "value"),
     State("growth-model", "value"),
     running=[(Output("run-btn", "disabled"), True, False)],
     prevent_initial_call=True
 )
-def on_run(n_clicks, store_data, window_mode, growth_model):
+def on_run(n_clicks, store_data, uploaded_store, window_mode, growth_model):
     try:
-        # Velg data basert på hva som er lastet opp
-        if store_data.get('use_uploaded'):
-            if store_data.get('orders_only'):
-                # Kun ordrer lastet opp
-                fish_groups = FISH_GROUPS
-                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
-            else:
-                # Komplett fil lastet opp
-                fish_groups = uploaded_data['fish_groups'] if uploaded_data['fish_groups'] is not None else FISH_GROUPS
-                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
-        else:
-            fish_groups = FISH_GROUPS
-            orders = ORDERS
+        fish_groups, orders = _resolve_active_data(store_data, uploaded_store)
         
         result = run_allocation(
             fish_groups,
@@ -533,23 +543,14 @@ def on_run(n_clicks, store_data, window_mode, growth_model):
     Output("download-results", "data"),
     Input("export-results-btn", "n_clicks"),
     State('data-store', 'data'),
+    State('uploaded-store', 'data'),
     State("window-mode", "value"),
     State("growth-model", "value"),
     prevent_initial_call=True
 )
-def export_results(n_clicks, store_data, window_mode, growth_model):
+def export_results(n_clicks, store_data, uploaded_store, window_mode, growth_model):
     try:
-        # Velg data basert på hva som er lastet opp
-        if store_data.get('use_uploaded'):
-            if store_data.get('orders_only'):
-                fish_groups = FISH_GROUPS
-                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
-            else:
-                fish_groups = uploaded_data['fish_groups'] if uploaded_data['fish_groups'] is not None else FISH_GROUPS
-                orders = uploaded_data['orders'] if uploaded_data['orders'] is not None else ORDERS
-        else:
-            fish_groups = FISH_GROUPS
-            orders = ORDERS
+        fish_groups, orders = _resolve_active_data(store_data, uploaded_store)
         
         result = run_allocation(
             fish_groups,

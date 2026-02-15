@@ -54,6 +54,16 @@ REQUIRED_ORDER_COLUMNS = [
     "PreferredGroup",
 ]
 
+
+def _validate_required_columns(df, required_columns, label):
+    missing = [c for c in required_columns if c not in df.columns]
+    if missing:
+        return (
+            f"Mangler kolonner i '{label}': {', '.join(missing)}. "
+            f"Forventet kolonner inkluderer: {', '.join(required_columns)}"
+        )
+    return None
+
 # ==========================================
 # 0. VEKSTTABELL (GRADING CONFIG)
 # ==========================================
@@ -709,15 +719,6 @@ def generate_orders_example_excel():
 def parse_orders_excel(contents, filename):
     import base64
 
-    def _validate_required_columns(df, required_columns, label):
-        missing = [c for c in required_columns if c not in df.columns]
-        if missing:
-            return (
-                f"Mangler kolonner i '{label}': {', '.join(missing)}. "
-                f"Forventet kolonner inkluderer: {', '.join(required_columns)}"
-            )
-        return None
-
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
     try:
@@ -741,15 +742,6 @@ def parse_orders_excel(contents, filename):
 
 def parse_uploaded_excel(contents, filename):
     import base64
-
-    def _validate_required_columns(df, required_columns, label):
-        missing = [c for c in required_columns if c not in df.columns]
-        if missing:
-            return (
-                f"Mangler kolonner i '{label}': {', '.join(missing)}. "
-                f"Forventet kolonner inkluderer: {', '.join(required_columns)}"
-            )
-        return None
 
     content_type, content_string = contents.split(",")
     decoded = base64.b64decode(content_string)
