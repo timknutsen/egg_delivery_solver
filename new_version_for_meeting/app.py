@@ -511,7 +511,7 @@ def on_run(n_clicks, store_data, uploaded_store, window_mode, growth_model):
                     dbc.Alert([
                         html.Span("🌿 = Organic batch | "),
                         html.Span("◆ = Tildelt ordre | "),
-                        html.Span("Lilla linje = Leveringsdato"),
+                        html.Span("Lilla skygge = Leveringsuke (uke-modus)"),
                     ], color="secondary"),
                     dcc.Graph(figure=result['chart']),
                     

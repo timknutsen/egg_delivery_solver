@@ -638,6 +638,20 @@ def create_gantt_chart(batches_df, allocated_df, window_mode="week"):
 
     if not allocated_df.empty:
         if window_mode == "week":
+            # Dummy legend trace so uke-bånd forklares i legend.
+            fig.add_trace(
+                go.Scatter(
+                    x=[None],
+                    y=[None],
+                    mode="markers",
+                    marker=dict(symbol="square", size=12, color="purple", opacity=0.18),
+                    name="Leveringsuke (uke-modus)",
+                    legendgroup="week",
+                    showlegend=True,
+                    hoverinfo="skip",
+                )
+            )
+
             # Marker aktive leveringsuker for å gjøre uke-basert validering visuelt tydelig.
             unique_weeks = set()
             for _, alloc in allocated_df.iterrows():
@@ -653,7 +667,7 @@ def create_gantt_chart(batches_df, allocated_df, window_mode="week"):
                     x0=week_start,
                     x1=week_end,
                     fillcolor="purple",
-                    opacity=0.05,
+                    opacity=0.035,
                     line_width=0,
                     layer="below",
                 )
@@ -683,7 +697,12 @@ def create_gantt_chart(batches_df, allocated_df, window_mode="week"):
                         x=[dd],
                         y=[y_pos[bid]],
                         mode="markers",
-                        marker=dict(color="purple", size=10, symbol="diamond"),
+                        marker=dict(
+                            color="purple",
+                            size=10,
+                            symbol="diamond",
+                            line=dict(color="white", width=1),
+                        ),
                         showlegend=False,
                         hovertemplate=(
                             f"<b>Ordre {alloc['OrderNr']}</b><br>"
