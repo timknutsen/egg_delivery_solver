@@ -720,9 +720,15 @@ def create_gantt_chart(batches_df, allocated_df, window_mode="week"):
         y_labels.append(label)
 
     fig.update_layout(
-        title=(
-            "Produksjonsplan og Salgsvindu"
-            + (" (ukevalidering)" if window_mode == "week" else " (dagvalidering)")
+        title=dict(
+            text=(
+                "Produksjonsplan og Salgsvindu"
+                + (" (ukevalidering)" if window_mode == "week" else " (dagvalidering)")
+            ),
+            x=0.01,
+            xanchor="left",
+            y=0.98,
+            yanchor="top",
         ),
         xaxis_title="Dato",
         yaxis_title="Batch",
@@ -733,8 +739,14 @@ def create_gantt_chart(batches_df, allocated_df, window_mode="week"):
             autorange="reversed",
         ),
         height=max(400, len(batch_ids) * 50),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(r=150),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.08,
+            xanchor="left",
+            x=0.01,
+        ),
+        margin=dict(t=110, r=150),
     )
     return fig
 
