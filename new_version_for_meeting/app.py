@@ -10,6 +10,7 @@ Inkluderer:
 
 import os
 import traceback
+from io import StringIO
 
 import dash
 import dash_bootstrap_components as dbc
@@ -21,6 +22,7 @@ from config import FISH_GROUPS, ORDERS, WATER_TEMP_C
 from logic import (
     generate_example_excel,
     generate_orders_example_excel,
+    is_precomputed_batch_input,
     parse_orders_excel,
     parse_uploaded_excel,
     run_allocation,
@@ -29,7 +31,11 @@ from logic import (
 # ==========================================
 # APP SETUP
 # ==========================================
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(
+    __name__,
+    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    suppress_callback_exceptions=True,
+)
 server = app.server
 app.title = "Eggallokering"
 
@@ -43,7 +49,7 @@ def _df_to_store_json(df):
 def _store_json_to_df(payload):
     if payload is None:
         return None
-    return pd.read_json(payload, orient="split")
+    return pd.read_json(StringIO(payload), orient="split")
 
 
 def _resolve_active_data(store_data, uploaded_store):
@@ -124,31 +130,190 @@ def _build_table(df, header_background, conditional_styles=None, page_size=10):
     )
 
 
-def _build_results_figure(figure):
-    figure.update_layout(
-        title=None,
-        paper_bgcolor="#f8f6f1",
-        plot_bgcolor="#fffdf8",
-        font={"family": '"Avenir Next", "Segoe UI", sans-serif', "color": "#1f2a2b"},
-        margin={"l": 20, "r": 20, "t": 24, "b": 20},
-        legend={
-            "orientation": "h",
-            "yanchor": "bottom",
-            "y": 1.03,
-            "xanchor": "left",
-            "x": 0,
-            "bgcolor": "rgba(255,255,255,0.65)",
-        },
+def _format_compact_volume(value):
+    value = float(value or 0)
+    if abs(value) >= 1_000_000:
+        return f"{value / 1_000_000:.1f}M"
+    if abs(value) >= 1_000:
+        return f"{value / 1_000:.0f}k"
+    return f"{value:.0f}"
+
+
+def _build_planning_overview(overview):
+    periods = overview.get("periods", [])
+    sites = overview.get("sites", [])
+    cells = {
+        (cell["site"], cell["period"]): cell
+        for cell in overview.get("cells", [])
+    }
+    period_totals = {
+        total["period"]: total
+        for total in overview.get("period_totals", [])
+    }
+    column_count = max(len(periods), 1)
+    grid_style = {
+        "gridTemplateColumns": f"minmax(170px, 1.15fr) repeat({column_count}, minmax(58px, 1fr))"
+    }
+
+    if not periods or not sites:
+        return html.Div(
+            "Ingen tildelte ordrer å vise i planoversikten.",
+            className="planning-empty",
+        )
+
+    header = [
+        html.Div("Lokasjon", className="planning-cell planning-sticky planning-header-cell")
+    ] + [
+        html.Div(period, className="planning-cell planning-header-cell")
+        for period in periods
+    ]
+
+    exception_row = [
+        html.Div("Ikke tildelt", className="planning-cell planning-sticky planning-total-label")
+    ]
+    for period in periods:
+        total = period_totals.get(period, {})
+        orders = int(total.get("unallocated_orders", 0))
+        volume = float(total.get("unallocated_volume", 0))
+        exception_row.append(
+            html.Div(
+                [
+                    html.Span(str(orders) if orders else "", className="planning-cell-main"),
+                    html.Span(_format_compact_volume(volume) if volume else "", className="planning-cell-sub"),
+                ],
+                className=f"planning-cell planning-exception-cell {'has-exception' if orders else ''}",
+                title=f"{period}: {orders} ikke tildelt, volum {_format_compact_volume(volume)}",
+            )
+        )
+
+    rows = []
+    for site in sites:
+        site_name = site["site"]
+        rows.append(
+            html.Div(
+                [
+                    html.Div(site_name, className="planning-site-name"),
+                    html.Div(
+                        f"{site['assigned_orders']} ordrer · {_format_compact_volume(site['assigned_volume'])}",
+                        className="planning-site-meta",
+                    ),
+                ],
+                className="planning-cell planning-sticky planning-site-cell",
+            )
+        )
+        for period in periods:
+            cell = cells.get((site_name, period), {})
+            volume = float(cell.get("volume", 0))
+            orders = int(cell.get("orders", 0))
+            capacity = float(cell.get("capacity", 0))
+            utilization = cell.get("utilization")
+            util_label = "" if utilization is None else f"{utilization * 100:.0f}%"
+            tone = cell.get("tone", "empty")
+            rows.append(
+                html.Div(
+                    [
+                        html.Span(_format_compact_volume(volume) if volume else "", className="planning-cell-main"),
+                        html.Span(f"{orders} ord." if orders else "", className="planning-cell-sub"),
+                        html.Span(util_label, className="planning-util"),
+                    ],
+                    className=f"planning-cell planning-data-cell planning-{tone}",
+                    title=(
+                        f"{site_name} {period}: {orders} ordrer, "
+                        f"volum {_format_compact_volume(volume)}, "
+                        f"aktiv kapasitet {_format_compact_volume(capacity)}"
+                    ),
+                )
+            )
+
+    exceptions = overview.get("exceptions", [])
+    if exceptions:
+        exception_list = html.Div(
+            [
+                html.Div(
+                    [
+                        html.Div(f"Ordre {item.get('OrderNr', '')}", className="exception-order"),
+                        html.Div(
+                            f"{item.get('DeliveryDate', '')} · "
+                            f"{_format_compact_volume(item.get('Volume', 0))} · "
+                            f"{item.get('Reason', '')}",
+                            className="exception-detail",
+                        ),
+                    ],
+                    className="exception-item",
+                )
+                for item in exceptions
+            ],
+            className="exception-list",
+        )
+    else:
+        exception_list = html.Div("Ingen ikke-tildelte ordrer.", className="planning-empty-small")
+
+    hidden_sites = overview.get("summary", {}).get("hidden_sites", 0)
+    hidden_note = (
+        html.Div(f"{hidden_sites} lokasjoner er skjult fordi de har lavere volum.", className="planning-note")
+        if hidden_sites
+        else None
     )
-    figure.update_xaxes(showgrid=True, gridcolor="#d9d1c2", zeroline=False)
-    figure.update_yaxes(showgrid=False, zeroline=False)
-    return figure
+
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Span("Volum per lokasjon og periode", className="legend-chip legend-neutral"),
+                    html.Span("Rød rad = ikke tildelt", className="legend-chip legend-risk"),
+                    html.Span("Mørkere grønn = høyere kapasitetsbruk", className="legend-chip legend-organic"),
+                ],
+                className="legend-row",
+            ),
+            html.Div(
+                html.Div(
+                    header + exception_row + rows,
+                    className="planning-grid",
+                    style=grid_style,
+                ),
+                className="planning-scroll",
+            ),
+            hidden_note,
+            html.Div(
+                [
+                    html.Div("Avvik", className="planning-subtitle"),
+                    exception_list,
+                ],
+                className="planning-exceptions",
+            ),
+        ],
+        className="planning-overview",
+    )
 
 
 def _format_source_label(store_data):
     if store_data.get("use_uploaded"):
         return "Opplastet ordrefil" if store_data.get("orders_only") else "Opplastet komplett fil"
     return "Default datasett"
+
+
+def _scenario_runtime_note(fish_groups, orders):
+    """Returnerer en kort advarsel for store scenarioer."""
+    n_orders = len(orders) if orders is not None else 0
+    n_groups = len(fish_groups) if fish_groups is not None else 0
+    if fish_groups is not None and is_precomputed_batch_input(fish_groups):
+        return (
+            f"Dette scenarioet har {n_orders} ordrer og {n_groups} ferdige batcher. "
+            "Eksakt optimalisering kan ta 1-2 minutter."
+        )
+    if n_orders >= 500 or n_groups >= 200:
+        return (
+            f"Dette scenarioet har {n_orders} ordrer og {n_groups} grupper. "
+            "Kjøring kan ta litt tid."
+        )
+    return None
+
+
+def _upload_success_alert(message, runtime_note=None):
+    children = [html.Div(message)]
+    if runtime_note:
+        children.append(html.Div(runtime_note, className="mt-1"))
+    return dbc.Alert(children, color="success", className="status-alert mb-0")
 
 
 def _make_status_panel():
@@ -406,9 +571,9 @@ app.layout = html.Div(
                         html.Div(
                             [
                                 html.Div("Egg Delivery Solver", className="hero-kicker"),
-                                html.H1("Eggallokering som et planleggingsverktøy", className="hero-title"),
+                                html.H1("Eggallokering", className="hero-title"),
                                 html.P(
-                                    "Importer scenario, juster biologiske regler og kjør allokering i en arbeidsflate som prioriterer beslutninger fremfor skjemaer.",
+                                    "Importer scenario, velg planleggingsregler og kjør allokering fra samme arbeidsflate.",
                                     className="hero-copy",
                                 ),
                             ],
@@ -445,7 +610,7 @@ app.layout = html.Div(
                                 _section_heading(
                                     "Output",
                                     "Resultater og konfliktsoner",
-                                    "Når modellen kjøres, flyttes fokus hit: dekning, avvik, mulige batcher og tidslinje.",
+                                    "Når modellen kjøres, flyttes fokus hit: dekning, avvik, mulige batcher og planoversikt.",
                                 ),
                                 dcc.Loading(
                                     html.Div(id="output", className="results-shell"),
@@ -580,11 +745,11 @@ def handle_upload(contents, filename):
             {"fish_groups": None, "orders": None},
         )
 
+    runtime_note = _scenario_runtime_note(fish_groups, orders)
     return (
-        dbc.Alert(
+        _upload_success_alert(
             f"{filename}: {len(fish_groups)} grupper, {len(orders)} ordrer",
-            color="success",
-            className="status-alert mb-0",
+            runtime_note,
         ),
         {"use_uploaded": True, "orders_only": False},
         {"fish_groups": _df_to_store_json(fish_groups), "orders": _df_to_store_json(orders)},
@@ -614,11 +779,11 @@ def handle_orders_upload(contents, filename):
             {"fish_groups": None, "orders": None},
         )
 
+    runtime_note = _scenario_runtime_note(FISH_GROUPS, orders)
     return (
-        dbc.Alert(
+        _upload_success_alert(
             f"{filename}: {len(orders)} ordrer med default fiskegrupper",
-            color="success",
-            className="status-alert mb-0",
+            runtime_note,
         ),
         {"use_uploaded": True, "orders_only": True},
         {"fish_groups": None, "orders": _df_to_store_json(orders)},
@@ -653,7 +818,10 @@ def reset_data(n_clicks):
     State("uploaded-store", "data"),
     State("window-mode", "value"),
     State("growth-model", "value"),
-    running=[(Output("run-btn", "disabled"), True, False)],
+    running=[
+        (Output("run-btn", "disabled"), True, False),
+        (Output("run-btn", "children"), "Beregner... ikke lukk vinduet", "Kjør allokering"),
+    ],
     prevent_initial_call=True,
 )
 def on_run(n_clicks, store_data, uploaded_store, window_mode, growth_model):
@@ -699,7 +867,7 @@ def on_run(n_clicks, store_data, uploaded_store, window_mode, growth_model):
         possible_display = possible_groups_df.copy()
         possible_display["Volume"] = possible_display["Volume"].apply(lambda x: f"{x:,.0f}")
 
-        chart = _build_results_figure(result["chart"])
+        planning_overview = _build_planning_overview(result["visualization"])
 
         return html.Div(
             [
@@ -775,20 +943,12 @@ def on_run(n_clicks, store_data, uploaded_store, window_mode, growth_model):
                         ),
                         html.Div(
                             [
-                                html.Div("Tidslinje", className="panel-title-small"),
+                                html.Div("Planoversikt", className="panel-title-small"),
                                 html.P(
-                                    "Tidslinjen er hovedflaten for å lese biologisk vindu, tildeling og konflikter.",
+                                    "Aggregert per lokasjon og periode slik at store scenarioer kan leses uten tung grafikk.",
                                     className="panel-copy-small",
                                 ),
-                                html.Div(
-                                    [
-                                        html.Span("Organic", className="legend-chip legend-organic"),
-                                        html.Span("Tildelt ordre", className="legend-chip legend-neutral"),
-                                        html.Span("Leveringsuke i uke-modus", className="legend-chip legend-week"),
-                                    ],
-                                    className="legend-row",
-                                ),
-                                dcc.Graph(figure=chart, config={"displayModeBar": False}, className="timeline-graph"),
+                                planning_overview,
                             ],
                             className="result-panel timeline-panel",
                         ),

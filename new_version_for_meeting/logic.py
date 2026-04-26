@@ -15,7 +15,6 @@ OPPDATERT:
 
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
 from datetime import timedelta
 import pulp as pl
 from pulp import PULP_CBC_CMD
@@ -54,6 +53,27 @@ REQUIRED_ORDER_COLUMNS = [
     "PreferredGroup",
 ]
 
+PRECOMPUTED_BATCH_COLUMNS = [
+    "Site",
+    "Site_Broodst_Season",
+    "BatchID",
+    "Produksjonvolum",
+    "SalesStartWeek",
+    "SaleStopWeek",
+]
+
+ORDER_DEFAULTS = {
+    "Customer": "",
+    "Product": "Gain",
+    "MinTemp_C": WATER_TEMP_C,
+    "MaxTemp_C": WATER_TEMP_C,
+    "RequireOrganic": False,
+    "LockedSite": "",
+    "LockedGroup": "",
+    "PreferredSite": "",
+    "PreferredGroup": "",
+}
+
 
 def _validate_required_columns(df, required_columns, label):
     missing = [c for c in required_columns if c not in df.columns]
@@ -63,6 +83,84 @@ def _validate_required_columns(df, required_columns, label):
             f"Forventet kolonner inkluderer: {', '.join(required_columns)}"
         )
     return None
+
+
+def _has_required_columns(df, required_columns):
+    return all(c in df.columns for c in required_columns)
+
+
+def _normalize_bool_value(value):
+    if pd.isna(value):
+        return False
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "yes", "ja", "y", "x", "✓"}
+    return bool(value)
+
+
+def normalize_orders_input(orders_df):
+    """Fyller inn valgfrie ordre-kolonner slik at forenklede filer kan kjøres."""
+    orders = orders_df.copy()
+    for column, default in ORDER_DEFAULTS.items():
+        if column not in orders.columns:
+            orders[column] = default
+        else:
+            orders[column] = orders[column].fillna(default)
+
+    orders["DeliveryDate"] = pd.to_datetime(orders["DeliveryDate"])
+    orders["Volume"] = pd.to_numeric(orders["Volume"])
+    orders["Product"] = orders["Product"].astype(str).str.strip().replace("", "Gain")
+    orders["RequireOrganic"] = orders["RequireOrganic"].apply(_normalize_bool_value)
+    return orders
+
+
+def is_precomputed_batch_input(fish_groups_df):
+    """Sjekker om Fiskegrupper-arket allerede inneholder ferdige batchvinduer."""
+    return _has_required_columns(fish_groups_df, PRECOMPUTED_BATCH_COLUMNS)
+
+
+def _iso_week_to_monday(week_value):
+    week_int = int(week_value)
+    year = week_int // 100
+    week = week_int % 100
+    return pd.Timestamp.fromisocalendar(year, week, 1)
+
+
+def _iso_week_to_sunday(week_value):
+    return _iso_week_to_monday(week_value) + pd.Timedelta(days=6)
+
+
+def build_precomputed_batches(fish_groups_df):
+    """Konverterer ferdige batchvinduer fra Excel til batch-formatet allokeringen bruker."""
+    batches = fish_groups_df.copy()
+    if "Organic" not in batches.columns:
+        batches["Organic"] = False
+    batches["Organic"] = batches["Organic"].apply(_normalize_bool_value)
+    batches["MaturationEnd"] = batches["SalesStartWeek"].apply(_iso_week_to_monday)
+    batches["ProductionEnd"] = batches["SaleStopWeek"].apply(_iso_week_to_sunday)
+    batches["StripDate"] = batches["MaturationEnd"]
+    batches["GainCapacity"] = pd.to_numeric(batches["Produksjonvolum"])
+    batches["ShieldCapacity"] = pd.to_numeric(batches["Produksjonvolum"])
+    batches["Group"] = batches["Site_Broodst_Season"]
+    batches["CalcInfo"] = (
+        "Precomputed sales weeks "
+        + batches["SalesStartWeek"].astype(str)
+        + "-"
+        + batches["SaleStopWeek"].astype(str)
+    )
+    return batches[
+        [
+            "BatchID",
+            "Group",
+            "Site",
+            "StripDate",
+            "MaturationEnd",
+            "ProductionEnd",
+            "GainCapacity",
+            "ShieldCapacity",
+            "Organic",
+            "CalcInfo",
+        ]
+    ]
 
 # ==========================================
 # 0. VEKSTTABELL (GRADING CONFIG)
@@ -272,6 +370,22 @@ def _is_delivery_in_window(delivery_date, maturation_end, production_end, window
     raise ValueError(f"Ugyldig window_mode={window_mode}. Bruk 'day' eller 'week'.")
 
 
+def _window_mask(delivery_date, batches_df, window_mode):
+    delivery_date = pd.to_datetime(delivery_date)
+    if window_mode == "day":
+        return (batches_df["MaturationEnd"] <= delivery_date) & (
+            delivery_date <= batches_df["ProductionEnd"]
+        )
+
+    if window_mode == "week":
+        delivery_week = _week_start(delivery_date)
+        maturation_weeks = batches_df["_MaturationWeek"]
+        production_weeks = batches_df["_ProductionWeek"]
+        return (maturation_weeks <= delivery_week) & (delivery_week <= production_weeks)
+
+    raise ValueError(f"Ugyldig window_mode={window_mode}. Bruk 'day' eller 'week'.")
+
+
 def build_feasibility_set(orders_df, batches_df, window_mode="week"):
     """
     Finner alle gyldige (ordre, batch) kombinasjoner.
@@ -279,60 +393,49 @@ def build_feasibility_set(orders_df, batches_df, window_mode="week"):
     window_mode='week' betyr at sjekk gjøres på ukenivå (mandag-søndag).
     """
     feasible = []
+    batches_df = batches_df.copy()
+    batches_df["MaturationEnd"] = pd.to_datetime(batches_df["MaturationEnd"])
+    batches_df["ProductionEnd"] = pd.to_datetime(batches_df["ProductionEnd"])
+    batches_df["StripDate"] = pd.to_datetime(batches_df["StripDate"])
+    if window_mode == "week":
+        batches_df["_MaturationWeek"] = batches_df["MaturationEnd"].apply(_week_start)
+        batches_df["_ProductionWeek"] = batches_df["ProductionEnd"].apply(_week_start)
 
     for _, order in orders_df.iterrows():
         delivery_date = pd.to_datetime(order["DeliveryDate"])
-        
-        for _, batch in batches_df.iterrows():
-            # HARD CONSTRAINTS
-            require_organic = order.get("RequireOrganic", False)
-            if require_organic and not batch["Organic"]:
-                continue
+        candidates = batches_df[_window_mask(delivery_date, batches_df, window_mode)]
 
-            locked_site = order.get("LockedSite")
-            if pd.notna(locked_site) and str(locked_site).strip():
-                if batch["Site"] != locked_site:
-                    continue
+        require_organic = order.get("RequireOrganic", False)
+        if require_organic:
+            candidates = candidates[candidates["Organic"]]
 
-            locked_group = order.get("LockedGroup")
-            if pd.notna(locked_group) and str(locked_group).strip():
-                if batch["Group"] != locked_group:
-                    continue
+        locked_site = order.get("LockedSite")
+        if pd.notna(locked_site) and str(locked_site).strip():
+            candidates = candidates[candidates["Site"] == locked_site]
 
-            # --- SJEKK LEVERINGSVINDU ---
-            # Batch har et absolutt vindu: [MaturationEnd, ProductionEnd]
-            # Kunden ønsker levering på 'DeliveryDate'.
-            
-            # Sjekk 1: Er leveringsdatoen fysisk mulig for batchen?
-            # Kan kjøres enten på dag eller uke-nivå.
-            if not _is_delivery_in_window(
-                delivery_date,
-                batch["MaturationEnd"],
-                batch["ProductionEnd"],
-                window_mode=window_mode,
-            ):
-                continue
-            
-            # Sjekk 2 (Valgfri, men god): Kundens temperaturkrav vs Faktisk tid
-            # "Hvis jeg leverer på denne datoen, hvor mange døgngrader har fisken fått?"
+        locked_group = order.get("LockedGroup")
+        if pd.notna(locked_group) and str(locked_group).strip():
+            candidates = candidates[candidates["Group"] == locked_group]
+
+        capacity_col = _capacity_column_for_product(order.get("Product", "Gain"))
+        candidates = candidates[candidates[capacity_col] >= float(order["Volume"])]
+
+        pref_site = order.get("PreferredSite")
+        pref_group = order.get("PreferredGroup")
+
+        for _, batch in candidates.iterrows():
             days_since_strip = (delivery_date - batch["StripDate"]).days
-            dd_at_delivery = days_since_strip * WATER_TEMP_C # Forenklet DD beregning ved sjø
-
-            # SOFT CONSTRAINTS (Preferanser)
+            dd_at_delivery = days_since_strip * WATER_TEMP_C
             bonus = 0
             pref_matched = []
 
-            pref_site = order.get("PreferredSite")
-            if pd.notna(pref_site) and str(pref_site).strip():
-                if batch["Site"] == pref_site:
-                    bonus += PREFERENCE_BONUS
-                    pref_matched.append(f"Site={pref_site}")
+            if pd.notna(pref_site) and str(pref_site).strip() and batch["Site"] == pref_site:
+                bonus += PREFERENCE_BONUS
+                pref_matched.append(f"Site={pref_site}")
 
-            pref_group = order.get("PreferredGroup")
-            if pd.notna(pref_group) and str(pref_group).strip():
-                if batch["Group"] == pref_group:
-                    bonus += PREFERENCE_BONUS
-                    pref_matched.append(f"Group={pref_group}")
+            if pd.notna(pref_group) and str(pref_group).strip() and batch["Group"] == pref_group:
+                bonus += PREFERENCE_BONUS
+                pref_matched.append(f"Group={pref_group}")
 
             feasible.append(
                 {
@@ -566,6 +669,106 @@ def solve_allocation(orders_df, batches_df, feasible_df):
     return results_df, allocated_df
 
 
+def _capacity_column_for_product(product):
+    return "ShieldCapacity" if str(product).strip().lower() == "shield" else "GainCapacity"
+
+
+def solve_allocation_greedy(orders_df, batches_df, feasible_df):
+    """
+    Rask deterministisk allokering for store, ferdig beregnede batchplaner.
+    Tildeler én ordre om gangen til beste batch med ledig kapasitet.
+    """
+    if feasible_df.empty:
+        return solve_allocation(orders_df, batches_df, feasible_df)
+
+    remaining = {}
+    for _, batch in batches_df.iterrows():
+        remaining[(batch["BatchID"], "GainCapacity")] = float(batch["GainCapacity"])
+        remaining[(batch["BatchID"], "ShieldCapacity")] = float(batch["ShieldCapacity"])
+
+    allocated_rows = {}
+    feasible_df = feasible_df.copy()
+    order_sort = orders_df[["OrderNr", "DeliveryDate", "Volume"]].copy()
+    order_sort["DeliveryDate"] = pd.to_datetime(order_sort["DeliveryDate"])
+    option_counts = feasible_df.groupby("OrderNr").size().rename("OptionCount")
+    order_sort = order_sort.join(option_counts, on="OrderNr")
+    order_sort["OptionCount"] = order_sort["OptionCount"].fillna(0)
+    order_sort = order_sort.sort_values(
+        ["OptionCount", "Volume", "DeliveryDate", "OrderNr"],
+        ascending=[True, False, True, True],
+    )
+
+    for _, order_ref in order_sort.iterrows():
+        order_nr = order_ref["OrderNr"]
+        options = feasible_df[feasible_df["OrderNr"] == order_nr].copy()
+        if options.empty:
+            continue
+
+        product = options.iloc[0]["Product"]
+        capacity_col = _capacity_column_for_product(product)
+        volume = float(options.iloc[0]["Volume"])
+        options["RemainingCapacity"] = options["BatchID"].apply(
+            lambda batch_id: remaining.get((batch_id, capacity_col), 0.0)
+        )
+        options = options[options["RemainingCapacity"] >= volume]
+        if options.empty:
+            continue
+
+        options["PostAllocationCapacity"] = options["RemainingCapacity"] - volume
+        options = options.sort_values(
+            ["PreferenceBonus", "PostAllocationCapacity", "DegreeDays"],
+            ascending=[False, False, True],
+        )
+        chosen = options.iloc[0]
+        remaining[(chosen["BatchID"], capacity_col)] -= volume
+        allocated_rows[order_nr] = chosen
+
+    results = []
+    slack_used = set(feasible_df["OrderNr"].unique()) - set(allocated_rows)
+    for _, order in orders_df.iterrows():
+        order_nr = order["OrderNr"]
+        if order_nr in allocated_rows:
+            alloc_row = allocated_rows[order_nr]
+            results.append(
+                {
+                    "OrderNr": order_nr,
+                    "Customer": order.get("Customer", ""),
+                    "BatchID": alloc_row["BatchID"],
+                    "Site": alloc_row["Site"],
+                    "Organic": "✓" if alloc_row["Organic"] else "",
+                    "DegreeDays": alloc_row["DegreeDays"],
+                    "DeliveryDate": alloc_row["DeliveryDate"],
+                    "Volume": order["Volume"],
+                    "Product": order["Product"],
+                    "RequireOrganic": "✓" if order.get("RequireOrganic", False) else "",
+                    "PreferenceMatched": alloc_row["PreferenceMatched"],
+                    "Reason": "",
+                }
+            )
+        else:
+            reason = _get_unallocated_reason(order, feasible_df, slack_used)
+            results.append(
+                {
+                    "OrderNr": order_nr,
+                    "Customer": order.get("Customer", ""),
+                    "BatchID": "IKKE TILDELT",
+                    "Site": "-",
+                    "Organic": "-",
+                    "DegreeDays": "-",
+                    "DeliveryDate": pd.to_datetime(order["DeliveryDate"]),
+                    "Volume": order["Volume"],
+                    "Product": order["Product"],
+                    "RequireOrganic": "✓" if order.get("RequireOrganic", False) else "",
+                    "PreferenceMatched": "",
+                    "Reason": reason,
+                }
+            )
+
+    results_df = pd.DataFrame(results)
+    allocated_df = results_df[results_df["BatchID"] != "IKKE TILDELT"]
+    return results_df, allocated_df
+
+
 def _get_unallocated_reason(order, feasible_df, slack_used=None):
     """
     Hjelpefunksjon for å forklare hvorfor en ordre ikke fikk tildeling.
@@ -592,163 +795,226 @@ def _get_unallocated_reason(order, feasible_df, slack_used=None):
 
 
 # ==========================================
-# 5. VISUALISERING
+# 5. VISUALISERINGSDATA
 # ==========================================
-def create_gantt_chart(batches_df, allocated_df, window_mode="week"):
-    """Lager Gantt-chart med batcher for Modning og Produksjon."""
-    fig = go.Figure()
-    batch_ids = batches_df["BatchID"].tolist()
-    y_pos = {bid: i for i, bid in enumerate(batch_ids)}
+def _period_start(value, grain):
+    date = pd.to_datetime(value).normalize()
+    if grain == "month":
+        return date.replace(day=1)
+    return date - pd.Timedelta(days=int(date.weekday()))
 
-    for _, batch in batches_df.iterrows():
-        yp = y_pos[batch["BatchID"]]
-        organic_label = " 🌿" if batch["Organic"] else ""
 
-        # Modningsfase (blå) - Frem til salgsstart
-        fig.add_trace(
-            go.Scatter(
-                x=[batch["StripDate"], batch["MaturationEnd"]],
-                y=[yp, yp],
-                mode="lines",
-                line=dict(color="#1f77b4", width=20),
-                name="Modning (før salg)",
-                legendgroup="mod",
-                showlegend=(yp == 0),
-                hovertemplate=f"<b>{batch['BatchID']}{organic_label}</b><br>Modning<extra></extra>",
-            )
+def _period_label(value, grain):
+    date = pd.to_datetime(value)
+    if grain == "month":
+        return date.strftime("%Y-%m")
+    iso = date.isocalendar()
+    return f"{int(iso.year)}-W{int(iso.week):02d}"
+
+
+def _period_end(value, grain):
+    start = pd.to_datetime(value)
+    if grain == "month":
+        return start + pd.offsets.MonthEnd(0)
+    return start + pd.Timedelta(days=6)
+
+
+def _select_period_grain(delivery_dates):
+    if delivery_dates.empty:
+        return "week"
+    week_starts = delivery_dates.apply(lambda d: _period_start(d, "week"))
+    return "month" if week_starts.nunique() > 78 else "week"
+
+
+def _volume_tone(utilization, volume):
+    if volume <= 0:
+        return "empty"
+    if utilization is None:
+        return "active"
+    if utilization >= 1:
+        return "over"
+    if utilization >= 0.75:
+        return "high"
+    if utilization >= 0.4:
+        return "medium"
+    return "low"
+
+
+def create_planning_overview_data(
+    batches_df, results_df, window_mode="week", max_sites=40, exception_limit=12
+):
+    """Lager lettvekts visualiseringsdata aggregert per lokasjon og periode."""
+    results = results_df.copy()
+    batches = batches_df.copy()
+    if results.empty:
+        return {
+            "type": "planning_overview",
+            "period_grain": "week",
+            "periods": [],
+            "sites": [],
+            "cells": [],
+            "period_totals": [],
+            "exceptions": [],
+            "summary": {
+                "assigned_orders": 0,
+                "unallocated_orders": 0,
+                "assigned_volume": 0.0,
+                "unallocated_volume": 0.0,
+                "hidden_sites": 0,
+            },
+        }
+
+    results["DeliveryDate"] = pd.to_datetime(results["DeliveryDate"])
+    results["Volume"] = pd.to_numeric(results["Volume"], errors="coerce").fillna(0.0)
+    grain = _select_period_grain(results["DeliveryDate"])
+
+    results["_PeriodStart"] = results["DeliveryDate"].apply(lambda d: _period_start(d, grain))
+    results["_Period"] = results["_PeriodStart"].apply(lambda d: _period_label(d, grain))
+    is_assigned = results["BatchID"] != "IKKE TILDELT"
+    assigned = results[is_assigned].copy()
+    unallocated = results[~is_assigned].copy()
+    if not assigned.empty:
+        assigned["_PeriodStart"] = assigned["DeliveryDate"].apply(lambda d: _period_start(d, grain))
+        assigned["_Period"] = assigned["_PeriodStart"].apply(lambda d: _period_label(d, grain))
+
+    period_starts = sorted(results["_PeriodStart"].dropna().unique())
+    periods = [_period_label(p, grain) for p in period_starts]
+    period_lookup = dict(zip(periods, period_starts))
+
+    if assigned.empty:
+        site_order = []
+    else:
+        site_order = (
+            assigned.groupby("Site", dropna=False)["Volume"]
+            .sum()
+            .sort_values(ascending=False)
+            .index.astype(str)
+            .tolist()
         )
+    visible_sites = site_order[:max_sites]
+    hidden_sites = max(0, len(site_order) - len(visible_sites))
 
-        # Salgsvindu (rød) - Fra start til slutt
-        fig.add_trace(
-            go.Scatter(
-                x=[batch["MaturationEnd"], batch["ProductionEnd"]],
-                y=[yp, yp],
-                mode="lines",
-                line=dict(color="#d62728", width=20),
-                name="Salgsvindu",
-                legendgroup="prod",
-                showlegend=(yp == 0),
-                hovertemplate=(
-                    f"<b>{batch['BatchID']}{organic_label}</b><br>Salgsvindu<br>"
-                    f"Start: {batch['MaturationEnd'].strftime('%Y-%m-%d')}<br>"
-                    f"Slutt: {batch['ProductionEnd'].strftime('%Y-%m-%d')}<extra></extra>"
-                ),
-            )
-        )
+    if "GainCapacity" in batches.columns:
+        batches["GainCapacity"] = pd.to_numeric(batches["GainCapacity"], errors="coerce").fillna(0.0)
+    if "ShieldCapacity" in batches.columns:
+        batches["ShieldCapacity"] = pd.to_numeric(batches["ShieldCapacity"], errors="coerce").fillna(0.0)
+    batches["MaturationEnd"] = pd.to_datetime(batches["MaturationEnd"])
+    batches["ProductionEnd"] = pd.to_datetime(batches["ProductionEnd"])
+    capacity_by_site_period = {}
+    for site in visible_sites:
+        site_batches = batches[batches["Site"].astype(str) == site]
+        for period, start in period_lookup.items():
+            end = _period_end(start, grain)
+            active = site_batches[
+                (site_batches["MaturationEnd"] <= end)
+                & (site_batches["ProductionEnd"] >= start)
+            ]
+            capacity = float(active.get("GainCapacity", pd.Series(dtype=float)).sum())
+            capacity_by_site_period[(site, period)] = capacity
 
-    if not allocated_df.empty:
-        if window_mode == "week":
-            # Dummy legend trace so uke-bånd forklares i legend.
-            fig.add_trace(
-                go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode="markers",
-                    marker=dict(symbol="square", size=12, color="purple", opacity=0.18),
-                    name="Leveringsuke (uke-modus)",
-                    legendgroup="week",
-                    showlegend=True,
-                    hoverinfo="skip",
-                )
-            )
-
-            # Marker aktive leveringsuker for å gjøre uke-basert validering visuelt tydelig.
-            unique_weeks = set()
-            for _, alloc in allocated_df.iterrows():
-                if alloc["BatchID"] == "IKKE TILDELT":
-                    continue
-                dd = pd.to_datetime(alloc["DeliveryDate"])
-                week_start = (dd - pd.Timedelta(days=dd.weekday())).normalize()
-                week_end = week_start + pd.Timedelta(days=6, hours=23, minutes=59)
-                unique_weeks.add((week_start, week_end))
-
-            for week_start, week_end in sorted(unique_weeks):
-                fig.add_vrect(
-                    x0=week_start,
-                    x1=week_end,
-                    fillcolor="purple",
-                    opacity=0.035,
-                    line_width=0,
-                    layer="below",
-                )
-
-        for _, alloc in allocated_df.iterrows():
-            if alloc["BatchID"] == "IKKE TILDELT":
-                continue
-
-            dd = pd.to_datetime(alloc["DeliveryDate"])
-            bid = alloc["BatchID"]
-
-            if bid in y_pos:
-                pref = (
-                    f"<br>Pref: {alloc['PreferenceMatched']}"
-                    if alloc.get("PreferenceMatched")
-                    else ""
-                )
-                organic = "<br>🌿 Organic" if alloc.get("Organic") == "✓" else ""
-                mode_note = (
-                    "<br>Validering: uke"
-                    if window_mode == "week"
-                    else "<br>Validering: dag"
-                )
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=[dd],
-                        y=[y_pos[bid]],
-                        mode="markers",
-                        marker=dict(
-                            color="purple",
-                            size=10,
-                            symbol="diamond",
-                            line=dict(color="white", width=1),
-                        ),
-                        showlegend=False,
-                        hovertemplate=(
-                            f"<b>Ordre {alloc['OrderNr']}</b><br>"
-                            f"Kunde: {alloc.get('Customer', '')}<br>"
-                            f"Volume: {alloc.get('Volume', '')}<br>"
-                            f"Dato: {dd.strftime('%Y-%m-%d')}{organic}{pref}{mode_note}<extra></extra>"
-                        ),
-                    )
-                )
-
-    y_labels = []
-    for bid in batch_ids:
-        batch = batches_df[batches_df["BatchID"] == bid].iloc[0]
-        label = f"🌿 {bid}" if batch["Organic"] else bid
-        y_labels.append(label)
-
-    fig.update_layout(
-        title=dict(
-            text=(
-                "Produksjonsplan og Salgsvindu"
-                + (" (ukevalidering)" if window_mode == "week" else " (dagvalidering)")
-            ),
-            x=0.01,
-            xanchor="left",
-            y=0.98,
-            yanchor="top",
-        ),
-        xaxis_title="Dato",
-        yaxis_title="Batch",
-        yaxis=dict(
-            tickmode="array",
-            tickvals=list(y_pos.values()),
-            ticktext=y_labels,
-            autorange="reversed",
-        ),
-        height=max(400, len(batch_ids) * 50),
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.08,
-            xanchor="left",
-            x=0.01,
-        ),
-        margin=dict(t=110, r=150),
+    assigned_grouped = (
+        assigned.groupby(["Site", "_Period"], dropna=False)
+        .agg(volume=("Volume", "sum"), orders=("OrderNr", "count"))
+        .reset_index()
+        if not assigned.empty
+        else pd.DataFrame(columns=["Site", "_Period", "volume", "orders"])
     )
-    return fig
+    assigned_lookup = {
+        (str(row["Site"]), row["_Period"]): row
+        for _, row in assigned_grouped.iterrows()
+    }
+
+    cells = []
+    for site in visible_sites:
+        for period in periods:
+            row = assigned_lookup.get((site, period))
+            volume = float(row["volume"]) if row is not None else 0.0
+            orders = int(row["orders"]) if row is not None else 0
+            capacity = capacity_by_site_period.get((site, period), 0.0)
+            utilization = (volume / capacity) if capacity > 0 and volume > 0 else None
+            cells.append(
+                {
+                    "site": site,
+                    "period": period,
+                    "volume": volume,
+                    "orders": orders,
+                    "capacity": capacity,
+                    "utilization": None if utilization is None else round(utilization, 3),
+                    "tone": _volume_tone(utilization, volume),
+                }
+            )
+
+    site_rows = []
+    for site in visible_sites:
+        site_assigned = assigned[assigned["Site"].astype(str) == site]
+        site_rows.append(
+            {
+                "site": site,
+                "assigned_orders": int(len(site_assigned)),
+                "assigned_volume": float(site_assigned["Volume"].sum()),
+            }
+        )
+
+    unallocated_by_period = (
+        unallocated.groupby("_Period")
+        .agg(volume=("Volume", "sum"), orders=("OrderNr", "count"))
+        .to_dict("index")
+        if not unallocated.empty
+        else {}
+    )
+    assigned_by_period = (
+        assigned.groupby("_Period")
+        .agg(volume=("Volume", "sum"), orders=("OrderNr", "count"))
+        .to_dict("index")
+        if not assigned.empty
+        else {}
+    )
+    period_totals = []
+    for period in periods:
+        assigned_period = assigned_by_period.get(period, {})
+        unallocated_period = unallocated_by_period.get(period, {})
+        period_totals.append(
+            {
+                "period": period,
+                "assigned_volume": float(assigned_period.get("volume", 0.0)),
+                "assigned_orders": int(assigned_period.get("orders", 0)),
+                "unallocated_volume": float(unallocated_period.get("volume", 0.0)),
+                "unallocated_orders": int(unallocated_period.get("orders", 0)),
+            }
+        )
+
+    exceptions = []
+    exception_cols = ["OrderNr", "DeliveryDate", "Volume", "Product", "LockedSite", "Reason"]
+    for _, row in unallocated.head(exception_limit).iterrows():
+        exceptions.append(
+            {
+                col: (
+                    row[col].strftime("%Y-%m-%d")
+                    if col == "DeliveryDate"
+                    else row.get(col, "")
+                )
+                for col in exception_cols
+                if col in row.index
+            }
+        )
+
+    return {
+        "type": "planning_overview",
+        "period_grain": grain,
+        "window_mode": window_mode,
+        "periods": periods,
+        "sites": site_rows,
+        "cells": cells,
+        "period_totals": period_totals,
+        "exceptions": exceptions,
+        "summary": {
+            "assigned_orders": int(len(assigned)),
+            "unallocated_orders": int(len(unallocated)),
+            "assigned_volume": float(assigned["Volume"].sum()) if not assigned.empty else 0.0,
+            "unallocated_volume": float(unallocated["Volume"].sum()) if not unallocated.empty else 0.0,
+            "hidden_sites": int(hidden_sites),
+        },
+    }
 
 
 # ==========================================
@@ -790,6 +1056,7 @@ def parse_orders_excel(contents, filename):
             except:
                 excel_file.seek(0)
                 orders = pd.read_excel(excel_file, sheet_name=0)
+            orders = normalize_orders_input(orders)
             validation_error = _validate_required_columns(
                 orders, REQUIRED_ORDER_COLUMNS, "Ordrer"
             )
@@ -811,11 +1078,15 @@ def parse_uploaded_excel(contents, filename):
             excel_file = io.BytesIO(decoded)
             fish_groups = pd.read_excel(excel_file, sheet_name="Fiskegrupper")
             orders = pd.read_excel(excel_file, sheet_name="Ordrer")
-            fish_validation_error = _validate_required_columns(
-                fish_groups, REQUIRED_FISH_COLUMNS, "Fiskegrupper"
-            )
+            if is_precomputed_batch_input(fish_groups):
+                fish_validation_error = None
+            else:
+                fish_validation_error = _validate_required_columns(
+                    fish_groups, REQUIRED_FISH_COLUMNS, "Fiskegrupper"
+                )
             if fish_validation_error:
                 return None, None, fish_validation_error
+            orders = normalize_orders_input(orders)
             orders_validation_error = _validate_required_columns(
                 orders, REQUIRED_ORDER_COLUMNS, "Ordrer"
             )
@@ -835,12 +1106,17 @@ def run_allocation(
     fish_groups_df, orders_df, window_mode="week", growth_model="table"
 ):
     """Kjører hele allokeringsprosessen og returnerer resultater."""
-    orders, groups = preprocess_data(orders_df, fish_groups_df)
-    batches = generate_weekly_batches(groups, growth_model=growth_model)
+    orders = normalize_orders_input(orders_df)
+    uses_precomputed_batches = is_precomputed_batch_input(fish_groups_df)
+    if uses_precomputed_batches:
+        batches = build_precomputed_batches(fish_groups_df)
+    else:
+        orders, groups = preprocess_data(orders, fish_groups_df)
+        batches = generate_weekly_batches(groups, growth_model=growth_model)
     feasible = build_feasibility_set(orders, batches, window_mode=window_mode)
     possible_groups = get_possible_groups_per_order(orders, feasible)
     results_df, allocated_df = solve_allocation(orders, batches, feasible)
-    chart = create_gantt_chart(batches, allocated_df, window_mode=window_mode)
+    overview = create_planning_overview_data(batches, results_df, window_mode=window_mode)
 
     return {
         "batches": batches,
@@ -848,5 +1124,5 @@ def run_allocation(
         "possible_groups": possible_groups,
         "results": results_df,
         "allocated": allocated_df,
-        "chart": chart,
+        "visualization": overview,
     }

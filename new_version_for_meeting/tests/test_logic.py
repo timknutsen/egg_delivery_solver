@@ -1,5 +1,8 @@
 import unittest
 import importlib.util
+import base64
+import io
+from io import StringIO
 
 import pandas as pd
 
@@ -10,9 +13,12 @@ from logic import (
     build_feasibility_set,
     calculate_formula_days,
     calculate_grading_days,
+    create_planning_overview_data,
     generate_weekly_batches,
+    parse_uploaded_excel,
     preprocess_data,
     run_allocation,
+    solve_allocation_greedy,
 )
 
 
@@ -239,6 +245,210 @@ class LogicTests(unittest.TestCase):
         self.assertIn("results", out)
         self.assertEqual(len(out["results"]), 1)
         self.assertNotEqual(out["results"].iloc[0]["BatchID"], "IKKE TILDELT")
+
+    def test_parse_uploaded_excel_accepts_precomputed_batch_windows(self):
+        fish_groups = pd.DataFrame(
+            [
+                {
+                    "Site": "Bogen",
+                    "Site_Broodst_Season": "Bogen_Off-season2_24/25",
+                    "BatchID": "Bogen_Off-season2_24/25-B1",
+                    "Produksjonvolum": 1_000_000,
+                    "SalesStartWeek": 202504,
+                    "SaleStopWeek": 202506,
+                }
+            ]
+        )
+        orders = pd.DataFrame(
+            [
+                {
+                    "OrderNr": 6291,
+                    "DeliveryDate": "2025-02-05",
+                    "Volume": 500_000,
+                    "LockedSite": "Bogen",
+                }
+            ]
+        )
+        payload = io.BytesIO()
+        with pd.ExcelWriter(payload, engine="openpyxl") as writer:
+            fish_groups.to_excel(writer, sheet_name="Fiskegrupper", index=False)
+            orders.to_excel(writer, sheet_name="Ordrer", index=False)
+        contents = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + base64.b64encode(
+            payload.getvalue()
+        ).decode("ascii")
+
+        parsed_groups, parsed_orders, error = parse_uploaded_excel(contents, "scenario.xlsx")
+
+        self.assertIsNone(error)
+        self.assertEqual(parsed_groups.iloc[0]["BatchID"], "Bogen_Off-season2_24/25-B1")
+        self.assertEqual(parsed_orders.iloc[0]["Product"], "Gain")
+        self.assertFalse(bool(parsed_orders.iloc[0]["RequireOrganic"]))
+
+    def test_pandas_split_json_round_trip_uses_string_buffer(self):
+        df = pd.DataFrame([{"BatchID": "B1", "SalesStartWeek": 202504}])
+        payload = df.to_json(orient="split", date_format="iso")
+
+        parsed = pd.read_json(StringIO(payload), orient="split")
+
+        self.assertEqual(parsed.iloc[0]["BatchID"], "B1")
+
+    def test_run_allocation_uses_precomputed_sales_weeks(self):
+        fish_groups = pd.DataFrame(
+            [
+                {
+                    "Site": "Bogen",
+                    "Site_Broodst_Season": "Bogen_Off-season2_24/25",
+                    "BatchID": "Bogen_Off-season2_24/25-B1",
+                    "Produksjonvolum": 1_000_000,
+                    "SalesStartWeek": 202504,
+                    "SaleStopWeek": 202506,
+                }
+            ]
+        )
+        orders = pd.DataFrame(
+            [
+                {
+                    "OrderNr": 6291,
+                    "DeliveryDate": "2025-02-05",
+                    "Volume": 500_000,
+                    "LockedSite": "Bogen",
+                }
+            ]
+        )
+
+        out = run_allocation(fish_groups, orders, window_mode="week")
+
+        self.assertEqual(out["batches"].iloc[0]["MaturationEnd"], pd.Timestamp("2025-01-20"))
+        self.assertEqual(out["batches"].iloc[0]["ProductionEnd"], pd.Timestamp("2025-02-09"))
+        self.assertEqual(out["results"].iloc[0]["BatchID"], "Bogen_Off-season2_24/25-B1")
+
+    def test_greedy_allocation_respects_batch_capacity(self):
+        orders = pd.DataFrame(
+            [
+                {
+                    "OrderNr": 1,
+                    "Customer": "",
+                    "DeliveryDate": "2025-02-03",
+                    "Product": "Gain",
+                    "Volume": 80.0,
+                    "RequireOrganic": False,
+                },
+                {
+                    "OrderNr": 2,
+                    "Customer": "",
+                    "DeliveryDate": "2025-02-03",
+                    "Product": "Gain",
+                    "Volume": 80.0,
+                    "RequireOrganic": False,
+                },
+            ]
+        )
+        batches = pd.DataFrame(
+            [
+                {
+                    "BatchID": "B1",
+                    "Group": "G1",
+                    "Site": "Site1",
+                    "StripDate": pd.Timestamp("2025-01-27"),
+                    "MaturationEnd": pd.Timestamp("2025-01-27"),
+                    "ProductionEnd": pd.Timestamp("2025-02-09"),
+                    "GainCapacity": 100.0,
+                    "ShieldCapacity": 100.0,
+                    "Organic": False,
+                }
+            ]
+        )
+        feasible = build_feasibility_set(orders, batches, window_mode="week")
+
+        results, allocated = solve_allocation_greedy(orders, batches, feasible)
+
+        self.assertEqual(len(allocated), 1)
+        self.assertEqual(results["BatchID"].eq("IKKE TILDELT").sum(), 1)
+
+    def test_planning_overview_aggregates_many_batches_by_site_and_period(self):
+        batches = pd.DataFrame(
+            [
+                {
+                    "BatchID": f"B{i}",
+                    "Group": "G",
+                    "Site": "S",
+                    "StripDate": pd.Timestamp("2025-01-01"),
+                    "MaturationEnd": pd.Timestamp("2025-01-08"),
+                    "ProductionEnd": pd.Timestamp("2025-01-15"),
+                    "GainCapacity": 100.0,
+                    "ShieldCapacity": 100.0,
+                    "Organic": False,
+                }
+                for i in range(250)
+            ]
+        )
+        results = pd.DataFrame(
+            [
+                {
+                    "OrderNr": i,
+                    "BatchID": f"B{i}",
+                    "Site": "S",
+                    "DeliveryDate": "2025-01-08",
+                    "Volume": 10.0,
+                    "Reason": "",
+                }
+                for i in range(250)
+            ]
+        )
+
+        overview = create_planning_overview_data(batches, results, window_mode="week")
+
+        self.assertEqual(overview["type"], "planning_overview")
+        self.assertEqual(overview["period_grain"], "week")
+        self.assertEqual(overview["summary"]["assigned_orders"], 250)
+        self.assertEqual(len(overview["sites"]), 1)
+        self.assertEqual(overview["cells"][0]["volume"], 2500.0)
+        self.assertNotIn("data", overview)
+
+    def test_planning_overview_includes_unallocated_exception_row(self):
+        batches = pd.DataFrame(
+            [
+                {
+                    "BatchID": "B1",
+                    "Group": "G",
+                    "Site": "S",
+                    "StripDate": pd.Timestamp("2025-01-01"),
+                    "MaturationEnd": pd.Timestamp("2025-01-08"),
+                    "ProductionEnd": pd.Timestamp("2025-01-15"),
+                    "GainCapacity": 100.0,
+                    "ShieldCapacity": 100.0,
+                    "Organic": False,
+                }
+            ]
+        )
+        results = pd.DataFrame(
+            [
+                {
+                    "OrderNr": 1,
+                    "BatchID": "B1",
+                    "Site": "S",
+                    "DeliveryDate": "2025-01-08",
+                    "Volume": 10.0,
+                    "Product": "Gain",
+                    "Reason": "",
+                },
+                {
+                    "OrderNr": 2,
+                    "BatchID": "IKKE TILDELT",
+                    "Site": "",
+                    "DeliveryDate": "2025-01-08",
+                    "Volume": 25.0,
+                    "Product": "Gain",
+                    "Reason": "Kapasitet overskredet",
+                },
+            ]
+        )
+
+        overview = create_planning_overview_data(batches, results, window_mode="week")
+
+        self.assertEqual(overview["summary"]["unallocated_orders"], 1)
+        self.assertEqual(overview["period_totals"][0]["unallocated_volume"], 25.0)
+        self.assertEqual(overview["exceptions"][0]["Reason"], "Kapasitet overskredet")
 
 
 if __name__ == "__main__":
